@@ -229,6 +229,7 @@ screens:
 keybindings (use textual's BINDINGS):
 - `ctrl+n` new conversation
 - `ctrl+enter` send (enter = newline in composer)
+- `ctrl+p` edit current conversation system prompt
 - `ctrl+m` model picker
 - `f2` settings
 - `ctrl+r` retry last

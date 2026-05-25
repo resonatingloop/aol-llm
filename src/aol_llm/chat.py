@@ -83,6 +83,18 @@ class ChatService:
             title=clean_title,
         )
 
+    def update_system_prompt(
+        self,
+        conversation_id: str,
+        system_prompt: str,
+    ) -> Conversation:
+        clean_prompt = system_prompt.strip() or None
+        return db.update_conversation(
+            conversation_id,
+            path=self._db_path,
+            system_prompt=clean_prompt,
+        )
+
     def archive_conversation(self, conversation_id: str) -> Conversation:
         return db.update_conversation(
             conversation_id,

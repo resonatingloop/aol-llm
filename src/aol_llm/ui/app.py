@@ -13,6 +13,7 @@ from aol_llm.ui.modals import (
     ExportFormatModal,
     ModelPickerModal,
     RenameModal,
+    SystemPromptModal,
 )
 from aol_llm.ui.screens import MainScreen, SettingsScreen
 from aol_llm.ui.styles import APP_BINDINGS, APP_CSS
@@ -89,6 +90,14 @@ class AOLLLMApp(App[None]):
             self._rename_current_chat,
         )
 
+    def action_edit_system_prompt(self) -> None:
+        if self._current_conversation is None:
+            return
+        self.push_screen(
+            SystemPromptModal(self._current_conversation.system_prompt),
+            self._update_system_prompt,
+        )
+
     def action_open_model_picker(self) -> None:
         self.push_screen(
             ModelPickerModal(self._chat_service.model_choices()),
@@ -163,6 +172,15 @@ class AOLLLMApp(App[None]):
         )
         self._refresh_conversation_list()
         self._refresh_status_model()
+
+    def _update_system_prompt(self, system_prompt: str | None) -> None:
+        if self._current_conversation is None or system_prompt is None:
+            return
+        self._current_conversation = self._chat_service.update_system_prompt(
+            self._current_conversation.id,
+            system_prompt,
+        )
+        self.notify("System prompt updated")
 
     def _export_current_chat(self, format: str | None) -> None:
         if self._current_conversation is None or format is None:

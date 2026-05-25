@@ -3,7 +3,7 @@
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, ListItem, ListView
+from textual.widgets import Button, Input, Label, ListItem, ListView, TextArea
 
 from aol_llm.chat import ModelChoice
 
@@ -86,6 +86,45 @@ class RenameModal(ModalScreen[str | None]):
             return
         if event.button.id == "confirm-rename":
             self.dismiss(self.query_one("#rename-input", Input).value)
+
+
+class SystemPromptModal(ModalScreen[str | None]):
+    DEFAULT_CSS = """
+    SystemPromptModal {
+        align: center middle;
+    }
+
+    #system-prompt-modal {
+        width: 72;
+        height: 24;
+        border: solid $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+
+    #system-prompt-input {
+        height: 1fr;
+    }
+    """
+
+    def __init__(self, current_prompt: str | None) -> None:
+        super().__init__()
+        self._current_prompt = current_prompt or ""
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="system-prompt-modal"):
+            yield Label("System prompt")
+            yield TextArea(text=self._current_prompt, id="system-prompt-input")
+            with Horizontal(classes="modal-actions"):
+                yield Button("Cancel", id="cancel-system-prompt")
+                yield Button("Save", id="save-system-prompt", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel-system-prompt":
+            self.dismiss(None)
+            return
+        if event.button.id == "save-system-prompt":
+            self.dismiss(self.query_one("#system-prompt-input", TextArea).text)
 
 
 class ExportFormatModal(ModalScreen[str | None]):

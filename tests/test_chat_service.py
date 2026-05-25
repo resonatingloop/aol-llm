@@ -113,6 +113,18 @@ def test_management_methods_update_conversation(tmp_path: Path) -> None:
     assert service.list_conversations() == []
 
 
+def test_update_system_prompt_sets_and_clears_prompt(tmp_path: Path) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+    service.init()
+    conversation = service.create_conversation()
+
+    updated = service.update_system_prompt(conversation.id, "  Be precise.  ")
+    cleared = service.update_system_prompt(conversation.id, "   ")
+
+    assert updated.system_prompt == "Be precise."
+    assert cleared.system_prompt is None
+
+
 def test_delete_conversation_removes_chat(tmp_path: Path) -> None:
     service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
     service.init()
