@@ -157,6 +157,11 @@ ENV/
 env.bak/
 venv.bak/
 
+# Local app data
+*.db
+*.db-journal
+aol-llm.db
+
 # Spyder project settings
 .spyderproject
 .spyproject
