@@ -4,29 +4,42 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Label, ListItem, ListView, Static, TextArea
 
+from aol_llm.core.types import Conversation
+
 
 class ConversationList(Static):
     def compose(self) -> ComposeResult:
         yield Label("Conversations", classes="panel-title")
-        yield ListView(
-            ListItem(Label("First chat")),
-            ListItem(Label("Provider notes")),
-            ListItem(Label("Scratchpad")),
-            id="conversation-list",
-        )
+        yield ListView(id="conversation-list")
+
+    def set_conversations(self, conversations: list[Conversation]) -> None:
+        list_view = self.query_one("#conversation-list", ListView)
+        list_view.clear()
+        for conversation in conversations:
+            list_view.append(ListItem(Label(conversation.title)))
 
 
 class ChatTranscript(Static):
     def compose(self) -> ComposeResult:
         yield Label("Transcript", classes="panel-title")
-        with Vertical(id="transcript-body"):
-            yield Static("user: hello", classes="message user-message")
-            yield Static("assistant: ready", classes="message assistant-message")
+        yield Vertical(id="transcript-body")
+
+    def append_message(self, role: str, content: str) -> Static:
+        body = self.query_one("#transcript-body", Vertical)
+        message = Static(f"{role}: {content}", classes=f"message {role}-message")
+        body.mount(message)
+        return message
 
 
 class Composer(Static):
     def compose(self) -> ComposeResult:
         yield TextArea(id="composer-input")
+
+    def text(self) -> str:
+        return self.query_one("#composer-input", TextArea).text
+
+    def clear(self) -> None:
+        self.query_one("#composer-input", TextArea).clear()
 
 
 class StatusBar(Static):
@@ -34,3 +47,22 @@ class StatusBar(Static):
         with Horizontal(id="status-row"):
             yield Static("anthropic / claude-sonnet-test", id="status-model")
             yield Static("input 0 / output 0 / $0.0000", id="status-usage")
+
+    def set_model(self, provider_id: str, model: str) -> None:
+        self.query_one("#status-model", Static).update(f"{provider_id} / {model}")
+
+    def add_usage(
+        self,
+        input_tokens: int | None,
+        output_tokens: int | None,
+        cost_usd: float | None,
+    ) -> None:
+        current_input = getattr(self, "_input_tokens", 0) + (input_tokens or 0)
+        current_output = getattr(self, "_output_tokens", 0) + (output_tokens or 0)
+        current_cost = getattr(self, "_cost_usd", 0.0) + (cost_usd or 0.0)
+        self._input_tokens = current_input
+        self._output_tokens = current_output
+        self._cost_usd = current_cost
+        self.query_one("#status-usage", Static).update(
+            f"input {current_input} / output {current_output} / ${current_cost:.4f}"
+        )
