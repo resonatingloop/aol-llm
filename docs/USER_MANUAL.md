@@ -97,7 +97,7 @@ continues editing in the composer.
 | `ctrl+n` | New conversation |
 | `ctrl+enter` | Send message |
 | `ctrl+t` | Rename current chat |
-| `ctrl+p` | Edit current conversation system prompt |
+| `f3` | Edit current conversation system prompt |
 | `ctrl+m` | Pick model |
 | `f2` | Open settings |
 | `ctrl+r` | Retry last response |
@@ -110,7 +110,7 @@ Destructive actions ask for confirmation first.
 
 ## System Prompts
 
-System prompts are per-conversation. Use `ctrl+p` to edit the current
+System prompts are per-conversation. Use `f3` to edit the current
 conversation's prompt. Save a blank prompt to clear it.
 
 System prompts are stored on the conversation record, not in the message list.
