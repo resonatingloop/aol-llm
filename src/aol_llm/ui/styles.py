@@ -18,8 +18,13 @@ Screen {
 #sidebar {
     width: 28;
     min-width: 24;
+    height: 1fr;
     border-right: solid $panel;
     padding: 1;
+}
+
+#conversation-list {
+    height: 1fr;
 }
 
 #chat-pane {

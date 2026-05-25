@@ -1,7 +1,7 @@
 """Textual widgets for the AOL-LLM shell."""
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import Label, ListItem, ListView, Static, TextArea
 
 from aol_llm.core.types import Conversation
@@ -22,17 +22,21 @@ class ConversationList(Static):
 class ChatTranscript(Static):
     def compose(self) -> ComposeResult:
         yield Label("Transcript", classes="panel-title")
-        yield Vertical(id="transcript-body")
+        yield VerticalScroll(id="transcript-body")
 
     def append_message(self, role: str, content: str) -> Static:
-        body = self.query_one("#transcript-body", Vertical)
+        body = self.query_one("#transcript-body", VerticalScroll)
         message = Static(f"{role}: {content}", classes=f"message {role}-message")
         body.mount(message)
+        body.scroll_end(animate=False)
         return message
 
     def clear_messages(self) -> None:
-        body = self.query_one("#transcript-body", Vertical)
+        body = self.query_one("#transcript-body", VerticalScroll)
         body.remove_children()
+
+    def scroll_to_end(self) -> None:
+        self.query_one("#transcript-body", VerticalScroll).scroll_end(animate=False)
 
 
 class Composer(Static):

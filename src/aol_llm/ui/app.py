@@ -69,6 +69,7 @@ class AOLLLMApp(App[None]):
                 if not event.done:
                     assistant_text += event.text
                     assistant_message.update(f"assistant: {assistant_text}")
+                    transcript.scroll_to_end()
                     continue
                 self.screen.query_one(StatusBar).add_usage(
                     event.input_tokens,
@@ -247,6 +248,7 @@ class AOLLLMApp(App[None]):
             if not event.done:
                 assistant_text += event.text
                 assistant_message.update(f"assistant: {assistant_text}")
+                transcript.scroll_to_end()
                 continue
             self.screen.query_one(StatusBar).add_usage(
                 event.input_tokens,

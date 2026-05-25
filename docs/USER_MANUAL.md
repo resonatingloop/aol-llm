@@ -87,6 +87,10 @@ The main screen has:
 - A composer at the bottom
 - Provider/model and token/cost totals in the status area
 
+The transcript and conversation list are scrollable when their contents are
+longer than the visible area. New chat output scrolls the transcript to the
+bottom as it streams.
+
 Type a message in the composer and send it with `ctrl+enter`. Regular `enter`
 continues editing in the composer.
 
