@@ -55,6 +55,7 @@ dependencies = [
     { name = "anthropic" },
     { name = "httpx" },
     { name = "keyring" },
+    { name = "platformdirs" },
     { name = "textual" },
 ]
 
@@ -72,6 +73,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.104.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "keyring", specifier = ">=25.7.0" },
+    { name = "platformdirs", specifier = ">=4.9.6" },
     { name = "textual", specifier = ">=8.2.7" },
 ]
 
