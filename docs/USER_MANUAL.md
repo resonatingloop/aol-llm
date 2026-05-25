@@ -102,7 +102,7 @@ continues editing in the composer.
 | `ctrl+enter` | Send message |
 | `ctrl+t` | Rename current chat |
 | `f3` | Edit current conversation system prompt |
-| `ctrl+m` | Pick model |
+| `f4` | Pick model |
 | `f2` | Open settings |
 | `ctrl+r` | Retry last response |
 | `ctrl+e` | Export current chat |

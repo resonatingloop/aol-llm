@@ -230,7 +230,7 @@ keybindings (use textual's BINDINGS):
 - `ctrl+n` new conversation
 - `ctrl+enter` send (enter = newline in composer)
 - `f3` edit current conversation system prompt
-- `ctrl+m` model picker
+- `f4` model picker
 - `f2` settings
 - `ctrl+r` retry last
 - `ctrl+e` export current chat
