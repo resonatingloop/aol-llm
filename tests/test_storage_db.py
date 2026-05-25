@@ -86,6 +86,16 @@ def test_messages_preserve_usage_fields_and_order(db_path: Path) -> None:
     assert messages[1].cost_usd == 0.001
 
 
+def test_delete_message_removes_only_that_message(db_path: Path) -> None:
+    conversation = db.create_conversation("Chat", "anthropic", "model", path=db_path)
+    first = db.add_message(conversation.id, "user", "hello", path=db_path)
+    second = db.add_message(conversation.id, "assistant", "hi", path=db_path)
+
+    db.delete_message(second.id, db_path)
+
+    assert db.list_messages(conversation.id, db_path) == [first]
+
+
 def test_delete_conversation_cascades_messages(db_path: Path) -> None:
     conversation = db.create_conversation("Chat", "anthropic", "model", path=db_path)
     db.add_message(conversation.id, "user", "hello", path=db_path)

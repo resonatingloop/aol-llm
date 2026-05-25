@@ -3,10 +3,12 @@
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, ListItem, ListView
+from textual.widgets import Button, Input, Label, ListItem, ListView
+
+from aol_llm.chat import ModelChoice
 
 
-class ModelPickerModal(ModalScreen[str | None]):
+class ModelPickerModal(ModalScreen[ModelChoice | None]):
     DEFAULT_CSS = """
     ModelPickerModal {
         align: center middle;
@@ -21,19 +23,100 @@ class ModelPickerModal(ModalScreen[str | None]):
     }
     """
 
+    def __init__(self, choices: list[ModelChoice]) -> None:
+        super().__init__()
+        self._choices = choices
+
     def compose(self) -> ComposeResult:
         with Vertical(id="model-picker"):
             yield Label("Model")
             yield ListView(
-                ListItem(Label("claude-sonnet-test")),
-                ListItem(Label("gpt-test")),
+                *[
+                    ListItem(Label(f"{choice.provider_id} / {choice.model}"))
+                    for choice in self._choices
+                ],
                 id="model-options",
             )
             with Horizontal(classes="modal-actions"):
                 yield Button("Cancel", id="cancel-model")
 
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if event.list_view.id != "model-options":
+            return
+        self.dismiss(self._choices[event.index])
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-model":
+            self.dismiss(None)
+
+
+class RenameModal(ModalScreen[str | None]):
+    DEFAULT_CSS = """
+    RenameModal {
+        align: center middle;
+    }
+
+    #rename-modal {
+        width: 52;
+        height: auto;
+        border: solid $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    """
+
+    def __init__(self, current_title: str) -> None:
+        super().__init__()
+        self._current_title = current_title
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="rename-modal"):
+            yield Label("Rename chat")
+            yield Input(value=self._current_title, id="rename-input")
+            with Horizontal(classes="modal-actions"):
+                yield Button("Cancel", id="cancel-rename")
+                yield Button("Rename", id="confirm-rename", variant="primary")
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.dismiss(event.value)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel-rename":
+            self.dismiss(None)
+            return
+        if event.button.id == "confirm-rename":
+            self.dismiss(self.query_one("#rename-input", Input).value)
+
+
+class ExportFormatModal(ModalScreen[str | None]):
+    DEFAULT_CSS = """
+    ExportFormatModal {
+        align: center middle;
+    }
+
+    #export-modal {
+        width: 44;
+        height: auto;
+        border: solid $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="export-modal"):
+            yield Label("Export")
+            with Horizontal(classes="modal-actions"):
+                yield Button("Markdown", id="export-markdown", variant="primary")
+                yield Button("JSON", id="export-json")
+                yield Button("Cancel", id="cancel-export")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "export-markdown":
+            self.dismiss("markdown")
+        elif event.button.id == "export-json":
+            self.dismiss("json")
+        else:
             self.dismiss(None)
 
 

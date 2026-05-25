@@ -6,7 +6,8 @@ from pathlib import Path
 
 from aol_llm.config import AppConfig, load_config
 from aol_llm.core.pricing import ModelPricing, estimate_cost_usd
-from aol_llm.core.types import Conversation, ProviderConfig, ProviderKind
+from aol_llm.core.types import Conversation, Message, ProviderConfig, ProviderKind
+from aol_llm.export import write_export
 from aol_llm.providers.base import Provider
 from aol_llm.providers.registry import build_provider
 from aol_llm.secrets import get_api_key
@@ -23,6 +24,12 @@ class ChatEvent:
     input_tokens: int | None = None
     output_tokens: int | None = None
     cost_usd: float | None = None
+
+
+@dataclass(frozen=True)
+class ModelChoice:
+    provider_id: str
+    model: str
 
 
 class ChatService:
@@ -63,13 +70,102 @@ class ChatService:
     def list_conversations(self) -> list[Conversation]:
         return db.list_conversations(path=self._db_path)
 
+    def get_conversation(self, conversation_id: str) -> Conversation:
+        return db.get_conversation(conversation_id, self._db_path)
+
+    def rename_conversation(self, conversation_id: str, title: str) -> Conversation:
+        clean_title = title.strip()
+        if not clean_title:
+            raise ValueError("conversation title cannot be empty")
+        return db.update_conversation(
+            conversation_id,
+            path=self._db_path,
+            title=clean_title,
+        )
+
+    def archive_conversation(self, conversation_id: str) -> Conversation:
+        return db.update_conversation(
+            conversation_id,
+            path=self._db_path,
+            archived=True,
+        )
+
+    def delete_conversation(self, conversation_id: str) -> None:
+        db.delete_conversation(conversation_id, self._db_path)
+
+    def switch_model(
+        self,
+        conversation_id: str,
+        provider_id: str,
+        model: str,
+    ) -> Conversation:
+        if provider_id not in self._config.providers:
+            raise KeyError(f"unknown provider config: {provider_id}")
+        if not model.strip():
+            raise ValueError("model cannot be empty")
+        return db.update_conversation(
+            conversation_id,
+            path=self._db_path,
+            provider_id=provider_id,
+            model=model.strip(),
+        )
+
+    def model_choices(self) -> list[ModelChoice]:
+        return [
+            ModelChoice(provider_id=provider_id, model=settings.default_model)
+            for provider_id, settings in sorted(self._config.providers.items())
+        ]
+
+    def export_conversation(
+        self,
+        conversation_id: str,
+        format: str = "markdown",
+        directory: Path | None = None,
+    ) -> Path:
+        conversation = db.get_conversation(conversation_id, self._db_path)
+        messages = db.list_messages(conversation_id, self._db_path)
+        export_dir = directory or self._default_export_dir()
+        return write_export(conversation, messages, export_dir, format)
+
     async def send_message(
         self,
         conversation_id: str,
         content: str,
     ) -> AsyncIterator[ChatEvent]:
-        conversation = db.get_conversation(conversation_id, self._db_path)
         db.add_message(conversation_id, "user", content, path=self._db_path)
+        async for event in self.stream_response(conversation_id):
+            yield event
+
+    async def retry_last_response(
+        self,
+        conversation_id: str,
+    ) -> AsyncIterator[ChatEvent]:
+        self.prepare_retry(conversation_id)
+        async for event in self.stream_response(conversation_id):
+            yield event
+
+    def prepare_retry(self, conversation_id: str) -> None:
+        messages = db.list_messages(conversation_id, self._db_path)
+        if not messages:
+            raise ValueError("cannot retry an empty conversation")
+        if messages[-1].role == "assistant":
+            db.delete_message(messages[-1].id, self._db_path)
+            messages = messages[:-1]
+        if not messages or messages[-1].role != "user":
+            raise ValueError("last message must be user-authored to retry")
+
+    async def stream_response(
+        self,
+        conversation_id: str,
+    ) -> AsyncIterator[ChatEvent]:
+        async for event in self._stream_assistant(conversation_id):
+            yield event
+
+    async def _stream_assistant(
+        self,
+        conversation_id: str,
+    ) -> AsyncIterator[ChatEvent]:
+        conversation = db.get_conversation(conversation_id, self._db_path)
         messages = db.list_messages(conversation_id, self._db_path)
         provider_config = self._provider_config(conversation)
         provider = self._provider_factory(
@@ -116,6 +212,9 @@ class ChatService:
             )
             return
 
+    def messages(self, conversation_id: str) -> list[Message]:
+        return db.list_messages(conversation_id, self._db_path)
+
     def _provider_config(self, conversation: Conversation) -> ProviderConfig:
         settings = self._config.providers[conversation.provider_id]
         kind: ProviderKind = (
@@ -132,3 +231,10 @@ class ChatService:
             default_model=settings.default_model,
             available_models=[settings.default_model],
         )
+
+    def _default_export_dir(self) -> Path:
+        if self._db_path is not None:
+            return self._db_path.parent / "exports"
+        from aol_llm.config import user_data_dir
+
+        return user_data_dir() / "exports"

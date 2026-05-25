@@ -30,6 +30,10 @@ class ChatTranscript(Static):
         body.mount(message)
         return message
 
+    def clear_messages(self) -> None:
+        body = self.query_one("#transcript-body", Vertical)
+        body.remove_children()
+
 
 class Composer(Static):
     def compose(self) -> ComposeResult:
@@ -50,6 +54,19 @@ class StatusBar(Static):
 
     def set_model(self, provider_id: str, model: str) -> None:
         self.query_one("#status-model", Static).update(f"{provider_id} / {model}")
+
+    def set_usage(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        cost_usd: float,
+    ) -> None:
+        self._input_tokens = input_tokens
+        self._output_tokens = output_tokens
+        self._cost_usd = cost_usd
+        self.query_one("#status-usage", Static).update(
+            f"input {input_tokens} / output {output_tokens} / ${cost_usd:.4f}"
+        )
 
     def add_usage(
         self,

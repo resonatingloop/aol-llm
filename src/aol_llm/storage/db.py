@@ -169,6 +169,11 @@ def list_messages(conversation_id: str, path: Path | None = None) -> list[Messag
         return [message_from_row(row) for row in rows]
 
 
+def delete_message(id: str, path: Path | None = None) -> None:
+    with get_connection(path) as connection:
+        connection.execute("DELETE FROM messages WHERE id = ?", (id,))
+
+
 def save_provider(config: ProviderConfig, path: Path | None = None) -> None:
     with get_connection(path) as connection:
         connection.execute(
