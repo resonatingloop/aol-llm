@@ -106,6 +106,9 @@ class AOLLLMApp(App[None]):
         )
 
     def action_open_settings(self) -> None:
+        if isinstance(self.screen, SettingsScreen):
+            self.pop_screen()
+            return
         self.push_screen(SettingsScreen())
 
     async def action_retry_last(self) -> None:

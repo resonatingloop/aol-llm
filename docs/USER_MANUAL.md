@@ -109,8 +109,11 @@ continues editing in the composer.
 | `ctrl+x` | Archive current chat |
 | `ctrl+d` | Delete current chat |
 | `ctrl+q` | Quit |
+| `escape` | Close settings or cancel a modal |
 
 Destructive actions ask for confirmation first.
+
+`f2` opens settings from the main screen and closes settings when pressed again.
 
 ## System Prompts
 

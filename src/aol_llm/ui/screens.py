@@ -22,6 +22,11 @@ class MainScreen(Screen[None]):
 
 
 class SettingsScreen(Screen[None]):
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Back"),
+        ("f2", "app.pop_screen", "Back"),
+    ]
+
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with Vertical(id="settings-layout"):

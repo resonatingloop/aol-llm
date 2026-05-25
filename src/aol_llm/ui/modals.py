@@ -9,6 +9,8 @@ from aol_llm.chat import ModelChoice
 
 
 class ModelPickerModal(ModalScreen[ModelChoice | None]):
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
     DEFAULT_CSS = """
     ModelPickerModal {
         align: center middle;
@@ -49,8 +51,13 @@ class ModelPickerModal(ModalScreen[ModelChoice | None]):
         if event.button.id == "cancel-model":
             self.dismiss(None)
 
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
 
 class RenameModal(ModalScreen[str | None]):
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
     DEFAULT_CSS = """
     RenameModal {
         align: center middle;
@@ -87,8 +94,13 @@ class RenameModal(ModalScreen[str | None]):
         if event.button.id == "confirm-rename":
             self.dismiss(self.query_one("#rename-input", Input).value)
 
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
 
 class SystemPromptModal(ModalScreen[str | None]):
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
     DEFAULT_CSS = """
     SystemPromptModal {
         align: center middle;
@@ -126,8 +138,13 @@ class SystemPromptModal(ModalScreen[str | None]):
         if event.button.id == "save-system-prompt":
             self.dismiss(self.query_one("#system-prompt-input", TextArea).text)
 
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
 
 class ExportFormatModal(ModalScreen[str | None]):
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
     DEFAULT_CSS = """
     ExportFormatModal {
         align: center middle;
@@ -158,8 +175,13 @@ class ExportFormatModal(ModalScreen[str | None]):
         else:
             self.dismiss(None)
 
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
 
 class ConfirmModal(ModalScreen[bool]):
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
     DEFAULT_CSS = """
     ConfirmModal {
         align: center middle;
@@ -187,3 +209,6 @@ class ConfirmModal(ModalScreen[bool]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "confirm-action")
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
