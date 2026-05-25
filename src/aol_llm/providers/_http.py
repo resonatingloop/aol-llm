@@ -51,9 +51,21 @@ async def raise_for_provider_status(response: httpx.Response) -> None:
         raise ContextLengthError("provider context length exceeded")
     if "content_filter" in text or "safety" in text or "policy" in text:
         raise ContentFilterError("provider refused the request")
-    raise UnknownProviderError(f"provider returned HTTP {response.status_code}")
+    raise UnknownProviderError(
+        f"provider returned HTTP {response.status_code}: {_body_excerpt(body)}"
+    )
 
 
 def translate_httpx_error(error: httpx.RequestError) -> NetworkError:
     del error
     return NetworkError("provider request failed")
+
+
+def _body_excerpt(body: bytes, limit: int = 240) -> str:
+    text = body.decode(errors="replace").strip()
+    text = " ".join(text.split())
+    if not text:
+        return "empty response body"
+    if len(text) > limit:
+        return f"{text[:limit]}..."
+    return text

@@ -87,7 +87,7 @@ Screen {
 
 APP_BINDINGS: list[Binding | tuple[str, str] | tuple[str, str, str]] = [
     Binding("ctrl+n", "new_conversation", "New", priority=True),
-    Binding("ctrl+enter", "send_message", "Send", priority=True),
+    Binding("f5", "send_message", "Send", priority=True),
     Binding("ctrl+t", "rename_current_chat", "Rename", priority=True),
     Binding("f3", "edit_system_prompt", "System", priority=True),
     Binding("f4", "open_model_picker", "Model", priority=True),

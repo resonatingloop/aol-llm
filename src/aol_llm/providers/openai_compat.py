@@ -1,6 +1,7 @@
 """OpenAI-compatible chat completions provider adapter."""
 
 from collections.abc import AsyncIterator
+from urllib.parse import urlparse
 
 import httpx
 
@@ -38,11 +39,11 @@ class OpenAICompatibleProvider:
         payload = {
             "model": model,
             "messages": payload_messages,
-            "max_tokens": max_output_tokens,
             "temperature": temperature,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+        payload[_max_tokens_field(self.config.base_url)] = max_output_tokens
         headers = {"content-type": "application/json"}
         if self._api_key:
             headers["authorization"] = f"Bearer {self._api_key}"
@@ -89,3 +90,10 @@ def _required_int(value: object) -> int:
     if not isinstance(value, int):
         raise UnknownProviderError("provider usage was missing token counts")
     return value
+
+
+def _max_tokens_field(base_url: str) -> str:
+    hostname = urlparse(base_url).hostname
+    if hostname == "api.openai.com":
+        return "max_completion_tokens"
+    return "max_tokens"

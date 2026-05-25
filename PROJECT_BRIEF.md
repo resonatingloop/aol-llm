@@ -149,7 +149,7 @@ Connect the UI to storage and providers. Sending a message should persist the
 user message, stream the assistant response, save the assistant message, and log
 tokens/cost.
 
-Done when: `ctrl+enter` sends a chat request, response text streams into the
+Done when: `f5` sends a chat request, response text streams into the
 transcript, final usage is recorded, and the status area updates token/cost
 totals.
 

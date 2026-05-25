@@ -5,7 +5,12 @@ import httpx
 import pytest
 import respx
 
-from aol_llm.core.errors import AuthError, NetworkError, RateLimitError
+from aol_llm.core.errors import (
+    AuthError,
+    NetworkError,
+    RateLimitError,
+    UnknownProviderError,
+)
 from aol_llm.core.types import Message, ProviderConfig, StreamChunk
 from aol_llm.providers.anthropic import ANTHROPIC_MESSAGES_URL, AnthropicProvider
 from aol_llm.providers.base import Provider
@@ -44,6 +49,18 @@ def openai_config() -> ProviderConfig:
         keyring_service="aol-llm.openai",
         default_model="gpt-test",
         available_models=["gpt-test"],
+    )
+
+
+def openai_api_config() -> ProviderConfig:
+    return ProviderConfig(
+        id="openai",
+        kind="openai_compatible",
+        display_name="OpenAI",
+        base_url="https://api.openai.com/v1",
+        keyring_service="aol-llm.openai",
+        default_model="gpt-5",
+        available_models=["gpt-5"],
     )
 
 
@@ -126,6 +143,56 @@ async def test_openai_compatible_provider_streams_text_and_usage() -> None:
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_openai_api_uses_max_completion_tokens() -> None:
+    route = respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"choices": [{"delta": {"content": "hi"}}]},
+                {
+                    "choices": [],
+                    "usage": {"prompt_tokens": 11, "completion_tokens": 13},
+                },
+            )
+            + "data: [DONE]\n\n",
+        )
+    )
+    provider = OpenAICompatibleProvider(config=openai_api_config(), api_key="test-key")
+
+    await collect(provider)
+
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["max_completion_tokens"] == 4096
+    assert "max_tokens" not in payload
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_non_openai_compatible_provider_keeps_max_tokens() -> None:
+    route = respx.post("https://api.openai.test/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"choices": [{"delta": {"content": "hi"}}]},
+                {
+                    "choices": [],
+                    "usage": {"prompt_tokens": 11, "completion_tokens": 13},
+                },
+            )
+            + "data: [DONE]\n\n",
+        )
+    )
+    provider = OpenAICompatibleProvider(config=openai_config(), api_key="test-key")
+
+    await collect(provider)
+
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["max_tokens"] == 4096
+    assert "max_completion_tokens" not in payload
+
+
+@respx.mock
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("status_code", "expected_error"),
     [(401, AuthError), (429, RateLimitError)],
@@ -157,6 +224,26 @@ async def test_openai_compatible_provider_maps_http_errors(
     provider = OpenAICompatibleProvider(config=openai_config(), api_key="test-key")
 
     with pytest.raises(expected_error):
+        await collect(provider)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_provider_http_400_includes_bounded_error_body() -> None:
+    respx.post("https://api.openai.test/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": "Unsupported parameter: max_tokens",
+                    "type": "invalid_request_error",
+                }
+            },
+        )
+    )
+    provider = OpenAICompatibleProvider(config=openai_config(), api_key="test-key")
+
+    with pytest.raises(UnknownProviderError, match="Unsupported parameter: max_tokens"):
         await collect(provider)
 
 

@@ -91,7 +91,7 @@ The transcript and conversation list are scrollable when their contents are
 longer than the visible area. New chat output scrolls the transcript to the
 bottom as it streams.
 
-Type a message in the composer and send it with `ctrl+enter`. Regular `enter`
+Type a message in the composer and send it with `f5`. Regular `enter`
 continues editing in the composer.
 
 ## Keybindings
@@ -99,7 +99,7 @@ continues editing in the composer.
 | Key | Action |
 | --- | --- |
 | `ctrl+n` | New conversation |
-| `ctrl+enter` | Send message |
+| `f5` | Send message |
 | `ctrl+t` | Rename current chat |
 | `f3` | Edit current conversation system prompt |
 | `f4` | Pick model |

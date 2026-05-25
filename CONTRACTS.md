@@ -228,7 +228,7 @@ screens:
 
 keybindings (use textual's BINDINGS):
 - `ctrl+n` new conversation
-- `ctrl+enter` send (enter = newline in composer)
+- `f5` send (enter = newline in composer)
 - `f3` edit current conversation system prompt
 - `f4` model picker
 - `f2` settings
@@ -251,7 +251,7 @@ step 4 (storage) done when: migrations apply cleanly to a fresh db; all storage 
 
 step 6 (textual shell) done when: app launches, MainScreen renders with a stub conversation list, composer accepts input, all bindings registered (can be no-ops). no provider integration yet.
 
-step 7 (wire chat) done when: typing a message and pressing ctrl+enter sends to the configured provider, streams response into transcript, persists both user and assistant message with token counts and cost, status bar updates running totals.
+step 7 (wire chat) done when: typing a message and pressing f5 sends to the configured provider, streams response into transcript, persists both user and assistant message with token counts and cost, status bar updates running totals.
 
 ---
 
