@@ -1,0 +1,34 @@
+"""Textual screens for the AOL-LLM shell."""
+
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical
+from textual.screen import Screen
+from textual.widgets import Footer, Header, Input, Label, Static
+
+from aol_llm.ui.widgets import ChatTranscript, Composer, ConversationList, StatusBar
+
+
+class MainScreen(Screen[None]):
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        with Vertical(id="main-layout"):
+            with Horizontal(id="workbench"):
+                yield ConversationList(id="sidebar")
+                with Vertical(id="chat-pane"):
+                    yield ChatTranscript(id="chat-transcript")
+                    yield Composer(id="composer")
+            yield StatusBar(id="status-bar")
+        yield Footer()
+
+
+class SettingsScreen(Screen[None]):
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        with Vertical(id="settings-layout"):
+            yield Label("Settings", classes="panel-title")
+            yield Input(placeholder="provider id", id="provider-id")
+            yield Input(placeholder="default model", id="default-model")
+            yield Input(placeholder="base url", id="base-url")
+            yield Input(placeholder="api key", password=True, id="api-key")
+            yield Static("api keys write to keyring", id="settings-status")
+        yield Footer()

@@ -1,2 +1,4 @@
 def main() -> None:
-    print("Hello from aol-llm!")
+    from aol_llm.ui.app import run
+
+    run()
