@@ -230,7 +230,7 @@ keybindings (use textual's BINDINGS):
 - `ctrl+n` new conversation
 - `ctrl+enter` send (enter = newline in composer)
 - `ctrl+m` model picker
-- `ctrl+,` settings
+- `f2` settings
 - `ctrl+r` retry last
 - `ctrl+e` export current chat
 - `ctrl+d` delete current chat (with ConfirmModal)

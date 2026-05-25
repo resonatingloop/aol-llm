@@ -111,6 +111,8 @@ uv run ruff format
 
 ## Project Docs
 
+- [docs/USER_MANUAL.md](./docs/USER_MANUAL.md) is the current user manual for
+  installing, configuring, and using the Textual app.
 - [PROJECT_BRIEF.md](./PROJECT_BRIEF.md) explains product direction and the
   implementation plan.
 - [CONTRACTS.md](./CONTRACTS.md) defines stable data, provider, storage, config,

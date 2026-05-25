@@ -85,7 +85,7 @@ APP_BINDINGS: list[Binding | tuple[str, str] | tuple[str, str, str]] = [
     ("ctrl+enter", "send_message", "Send"),
     ("ctrl+t", "rename_current_chat", "Rename"),
     ("ctrl+m", "open_model_picker", "Model"),
-    ("ctrl+comma", "open_settings", "Settings"),
+    ("f2", "open_settings", "Settings"),
     ("ctrl+r", "retry_last", "Retry"),
     ("ctrl+e", "export_current_chat", "Export"),
     ("ctrl+x", "archive_current_chat", "Archive"),
