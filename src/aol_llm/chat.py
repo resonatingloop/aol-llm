@@ -15,6 +15,10 @@ from aol_llm.storage import db
 
 ProviderFactory = Callable[[ProviderConfig, str | None], Provider]
 ApiKeyGetter = Callable[[str], str | None]
+DEFAULT_PROVIDER_MODELS = {
+    "anthropic": ["claude-opus-4-7", "claude-sonnet-4-5-20250929"],
+    "openai": ["gpt-5"],
+}
 
 
 @dataclass(frozen=True)
@@ -123,10 +127,11 @@ class ChatService:
         )
 
     def model_choices(self) -> list[ModelChoice]:
-        return [
-            ModelChoice(provider_id=provider_id, model=settings.default_model)
-            for provider_id, settings in sorted(self._config.providers.items())
-        ]
+        choices = []
+        for provider_id, settings in sorted(self._config.providers.items()):
+            for model in _provider_models(provider_id, settings.default_model):
+                choices.append(ModelChoice(provider_id=provider_id, model=model))
+        return choices
 
     def export_conversation(
         self,
@@ -241,7 +246,10 @@ class ChatService:
             base_url=settings.base_url,
             keyring_service=f"aol-llm.{conversation.provider_id}",
             default_model=settings.default_model,
-            available_models=[settings.default_model],
+            available_models=_provider_models(
+                conversation.provider_id,
+                settings.default_model,
+            ),
         )
 
     def _default_export_dir(self) -> Path:
@@ -250,3 +258,11 @@ class ChatService:
         from aol_llm.config import user_data_dir
 
         return user_data_dir() / "exports"
+
+
+def _provider_models(provider_id: str, default_model: str) -> list[str]:
+    models = [default_model]
+    for model in DEFAULT_PROVIDER_MODELS.get(provider_id, []):
+        if model not in models:
+            models.append(model)
+    return models

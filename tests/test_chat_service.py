@@ -113,6 +113,18 @@ def test_management_methods_update_conversation(tmp_path: Path) -> None:
     assert service.list_conversations() == []
 
 
+def test_model_choices_include_anthropic_sonnet_4_5(tmp_path: Path) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+
+    assert [
+        (choice.provider_id, choice.model) for choice in service.model_choices()
+    ] == [
+        ("anthropic", "claude-test"),
+        ("anthropic", "claude-opus-4-7"),
+        ("anthropic", "claude-sonnet-4-5-20250929"),
+    ]
+
+
 def test_update_system_prompt_sets_and_clears_prompt(tmp_path: Path) -> None:
     service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
     service.init()
