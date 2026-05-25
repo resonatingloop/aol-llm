@@ -1,20 +1,118 @@
 # aol-llm
-aol-llm is a Linux desktop chat client for multiple LLM providers, modeled aesthetically on the late-90s walled-garden services that aggregated email/IM/chat/web behind one weirdly personable interface.
 
-## status
-v0: textual TUI in development. GUI port planned.
+aol-llm is a local-first Linux chat client for talking to multiple LLM providers
+from one interface. The first build is a Textual TUI: fast to iterate,
+keyboard-friendly, and practical enough to prove the workflow before deciding
+whether the final desktop shell stays Textual or moves to PySide6 or Tauri 2.
 
-## install
-```
+## Hook
+
+The shape is an AOL-style unified client for LLM chat: one odd little desktop
+place for providers, models, chat history, retry, export, and token/cost
+inspection. It starts with Anthropic plus OpenAI-compatible APIs and keeps
+provider-native details behind adapters.
+
+## Status
+
+This is pre-release software. The current app can launch as a Textual TUI, store
+local chat history in SQLite, stream provider responses through normalized
+adapters, switch models, retry the last response, and export chats to Markdown
+or JSON.
+
+## Install
+
+Requirements:
+
+- Linux
+- Python 3.12+
+- `uv`
+- A desktop keyring supported by the Python `keyring` package
+
+Clone and install:
+
+```bash
+git clone https://github.com/resonatingloop/aol-llm.git
+cd aol-llm
 uv sync
 uv run aol-llm
 ```
 
-## stack 
-TODO
+Run as a module:
 
-## decisions
-TODO
+```bash
+uv run python -m aol_llm
+```
 
-## dev
-TODO
+## Configuration
+
+Config uses XDG paths:
+
+- Config: `~/.config/aol-llm/config.toml`
+- Data and database: `~/.local/share/aol-llm/`
+- API keys: system keyring under `aol-llm.<provider_id>` / `api_key`
+
+Minimal config shape:
+
+```toml
+[ui]
+theme = "default"
+default_provider = "anthropic"
+
+[providers.anthropic]
+default_model = "claude-opus-4-7"
+
+[providers.openai]
+base_url = "https://api.openai.com/v1"
+default_model = "gpt-5"
+```
+
+API keys are intentionally not stored in TOML or SQLite.
+
+## Development
+
+Install dependencies:
+
+```bash
+uv sync
+```
+
+Run the app:
+
+```bash
+uv run aol-llm
+```
+
+Run checks:
+
+```bash
+uv run pytest
+uv run ruff check
+uv run ruff format --check
+uv run mypy --strict src tests
+```
+
+Format files:
+
+```bash
+uv run ruff format
+```
+
+## Tech Stack Decisions
+
+- Textual first: validates the product loop quickly on Linux before committing
+  to a heavier desktop toolkit.
+- Provider adapters: Anthropic and OpenAI-compatible APIs map into one internal
+  streaming contract; provider-native objects do not cross into UI or storage.
+- Local-first storage: SQLite for conversations/messages/settings and keyring
+  for API keys.
+- System prompts live on conversations, not as messages.
+- Dataclasses and stdlib SQLite instead of pydantic or an ORM.
+- Tests are pulled forward and run through pytest, ruff, and strict mypy.
+
+## Project Docs
+
+- [PROJECT_BRIEF.md](./PROJECT_BRIEF.md) explains product direction and the
+  implementation plan.
+- [CONTRACTS.md](./CONTRACTS.md) defines stable data, provider, storage, config,
+  and UI contracts.
+- [AGENTS.md](./AGENTS.md) defines repository rules for AI coding agents.

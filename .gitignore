@@ -149,7 +149,10 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
+.direnv/
 .venv
 env/
 venv/
@@ -160,7 +163,10 @@ venv.bak/
 # Local app data
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 aol-llm.db
+exports/
 
 # Spyder project settings
 .spyderproject
