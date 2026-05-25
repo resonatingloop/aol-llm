@@ -204,6 +204,10 @@ api keys live in keyring under service `aol-llm.<provider_id>`, key `api_key`. a
 
 static rate card at `src/aol_llm/pricing.json`:
 
+TODO(agent): placeholder prices below must not ship as authoritative rates. before
+implementing `pricing.json`, verify current model pricing against provider docs
+or keep placeholder rates clearly marked in code and docs.
+
 ```json
 {
   "claude-opus-4-7":  {"input_per_mtok": 15.0, "output_per_mtok": 75.0},

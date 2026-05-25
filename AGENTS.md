@@ -17,13 +17,28 @@ If any of these contradicts the task as requested, stop and ask before proceedin
 
 ## Operating Rules
 
-**Scope discipline.** Do exactly the task assigned. No "while I'm here" refactors, no opportunistic cleanups, no renaming unrelated files. If you notice a problem outside the current task, leave a `# TODO(agent): <description>` comment and report it at the end of the session.
+**Scope discipline.** Do exactly the task assigned. No "while I'm here" refactors, no opportunistic cleanups, no renaming unrelated files. If you notice a problem outside the current task and you are already modifying the affected file, leave a `# TODO(agent): <description>` comment. Otherwise, just report the observation verbally at the end of the session.
 
-**One concern per session.** A session implements one logical unit (a module, a feature, a refactor). If the user's request spans multiple concerns, propose a breakdown and confirm before proceeding.
+**One coherent unit per session.** A session implements one feature, refactor, or module. If the user's request implies multiple unrelated units, surface the breakdown and confirm before starting. Within a single coherent unit, do not stop to confirm each sub-step. An explicit "go implement X" or "proceed with X" from the user counts as confirmation of any plan you've already proposed in this conversation. Absent such explicit go-ahead, propose a plan and wait.
 
 **Plan first, code second.** Before writing any code, restate the task and outline the changes you intend to make (files to touch, signatures to add or change, tests to write). Wait for confirmation before implementing.
 
 **Dependencies require approval.** Do NOT add anything to `pyproject.toml` without explicit user approval. The current dependency set is intentional and minimal. If you believe a new dep is necessary, name it, justify it, and wait. This rule includes dev dependencies.
+
+## Pre-Approved Dependencies
+
+The following dependencies are already approved because this file, `PROJECT_BRIEF.md`,
+or `CONTRACTS.md` requires them:
+
+- `pytest`
+- `pytest-asyncio`
+- `respx`
+- `ruff`
+- `mypy`
+- `platformdirs`
+
+Agents may add these to `pyproject.toml` without asking. Any dependency beyond
+this list still triggers the dependency approval rule.
 
 **No silent invention.** If a contract is ambiguous (schema field type, error semantics, provider behavior on an edge case), stop and ask. Do not infer plausibly-correct behavior. Plausibly-correct is usually subtly wrong here.
 
