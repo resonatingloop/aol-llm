@@ -29,6 +29,9 @@ You can also run it as a module:
 uv run python -m aol_llm
 ```
 
+The first public iteration is installed from source. There is no bundled desktop
+installer yet.
+
 ## First Setup
 
 The app reads provider defaults from:
@@ -54,6 +57,14 @@ default_model = "gpt-5"
 
 API keys are not stored in this file.
 
+To make OpenAI the default provider, set:
+
+```toml
+[ui]
+theme = "default"
+default_provider = "openai"
+```
+
 ## API Keys
 
 API keys live in your system keyring. For Anthropic, the app reads:
@@ -77,6 +88,12 @@ service:  aol-llm.openai
 username: api_key
 ```
 
+Set that key with:
+
+```bash
+uv run python -c 'import keyring; keyring.set_password("aol-llm.openai", "api_key", "YOUR_KEY_HERE")'
+```
+
 ## Chat Basics
 
 When the app opens, it creates or loads the most recently updated conversation.
@@ -93,6 +110,9 @@ bottom as it streams.
 
 Type a message in the composer and send it with `f5`. Regular `enter`
 continues editing in the composer.
+
+The settings screen is currently a placeholder. Edit config with your text
+editor and set API keys through keyring commands for now.
 
 ## Keybindings
 
@@ -174,3 +194,9 @@ with terminal emulator preferences.
 
 Provider errors appear in the transcript/status area. If a response fails after
 your user message is saved, use `ctrl+r` to retry the last response.
+
+### No Desktop Launcher Yet
+
+The app currently runs as a terminal program through `uv run aol-llm` or
+`uv run python -m aol_llm`. A bundled desktop launcher is a future packaging
+task, not part of the first public iteration.

@@ -19,6 +19,22 @@ local chat history in SQLite, stream provider responses through normalized
 adapters, switch models, retry the last response, and export chats to Markdown
 or JSON.
 
+The first public iteration is source-first: clone the repository, install with
+`uv`, configure a provider key, and run the TUI. There is no bundled desktop
+installer yet.
+
+Current Textual features:
+
+- Local conversation history in SQLite
+- Anthropic and OpenAI-compatible provider adapters
+- Streaming assistant responses
+- Per-conversation system prompts
+- Provider/model switching
+- Retry last response
+- Archive/delete with confirmation
+- Markdown and JSON export
+- Token and estimated cost display
+
 ## Install
 
 Requirements:
@@ -68,6 +84,17 @@ default_model = "gpt-5"
 
 API keys are intentionally not stored in TOML or SQLite.
 
+Set a key through Python `keyring`. For Anthropic:
+
+```bash
+uv run python -c 'import keyring; keyring.set_password("aol-llm.anthropic", "api_key", "YOUR_KEY_HERE")'
+```
+
+For the default OpenAI-compatible provider, use service `aol-llm.openai` and
+username `api_key`.
+
+See [docs/USER_MANUAL.md](./docs/USER_MANUAL.md) for the current walkthrough.
+
 ## Development
 
 Install dependencies:
@@ -97,6 +124,14 @@ Format files:
 uv run ruff format
 ```
 
+Build package artifacts locally:
+
+```bash
+uv build
+```
+
+Generated `dist/` files are ignored by git.
+
 ## Tech Stack Decisions
 
 - Textual first: validates the product loop quickly on Linux before committing
@@ -113,6 +148,10 @@ uv run ruff format
 
 - [docs/USER_MANUAL.md](./docs/USER_MANUAL.md) is the current user manual for
   installing, configuring, and using the Textual app.
+- [docs/RELEASE_CHECKLIST.md](./docs/RELEASE_CHECKLIST.md) tracks the remaining
+  public-release checks.
+- [docs/DESKTOP_TARGET_DECISION.md](./docs/DESKTOP_TARGET_DECISION.md) records
+  the current Textual/PySide6/Tauri desktop decision.
 - [PROJECT_BRIEF.md](./PROJECT_BRIEF.md) explains product direction and the
   implementation plan.
 - [CONTRACTS.md](./CONTRACTS.md) defines stable data, provider, storage, config,
