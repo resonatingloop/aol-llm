@@ -35,5 +35,8 @@ class SettingsScreen(Screen[None]):
             yield Input(placeholder="default model", id="default-model")
             yield Input(placeholder="base url", id="base-url")
             yield Input(placeholder="api key", password=True, id="api-key")
-            yield Static("api keys write to keyring", id="settings-status")
+            yield Static(
+                "settings editor is not wired yet; edit config/keyring manually",
+                id="settings-status",
+            )
         yield Footer()

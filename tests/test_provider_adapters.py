@@ -163,6 +163,11 @@ async def test_openai_api_uses_max_completion_tokens() -> None:
 
     payload = json.loads(route.calls.last.request.content)
     assert payload["max_completion_tokens"] == 4096
+    assert payload["messages"] == [
+        {"role": "developer", "content": "You are concise."},
+        {"role": "user", "content": "hello"},
+    ]
+    assert "temperature" not in payload
     assert "max_tokens" not in payload
 
 
@@ -188,6 +193,7 @@ async def test_non_openai_compatible_provider_keeps_max_tokens() -> None:
 
     payload = json.loads(route.calls.last.request.content)
     assert payload["max_tokens"] == 4096
+    assert payload["temperature"] == 1.0
     assert "max_completion_tokens" not in payload
 
 

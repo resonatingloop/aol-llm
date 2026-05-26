@@ -30,20 +30,27 @@ class OpenAICompatibleProvider:
         if self.config.base_url is None:
             raise UnknownProviderError("OpenAI-compatible provider requires a base_url")
 
+        is_openai_api = _is_openai_api(self.config.base_url)
         payload_messages = []
         if system is not None:
-            payload_messages.append({"role": "system", "content": system})
+            payload_messages.append(
+                {
+                    "role": "developer" if is_openai_api else "system",
+                    "content": system,
+                }
+            )
         payload_messages.extend(
             {"role": message.role, "content": message.content} for message in messages
         )
         payload = {
             "model": model,
             "messages": payload_messages,
-            "temperature": temperature,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
-        payload[_max_tokens_field(self.config.base_url)] = max_output_tokens
+        if not is_openai_api:
+            payload["temperature"] = temperature
+        payload[_max_tokens_field(is_openai_api)] = max_output_tokens
         headers = {"content-type": "application/json"}
         if self._api_key:
             headers["authorization"] = f"Bearer {self._api_key}"
@@ -92,8 +99,10 @@ def _required_int(value: object) -> int:
     return value
 
 
-def _max_tokens_field(base_url: str) -> str:
+def _is_openai_api(base_url: str) -> bool:
     hostname = urlparse(base_url).hostname
-    if hostname == "api.openai.com":
-        return "max_completion_tokens"
-    return "max_tokens"
+    return hostname == "api.openai.com"
+
+
+def _max_tokens_field(is_openai_api: bool) -> str:
+    return "max_completion_tokens" if is_openai_api else "max_tokens"
