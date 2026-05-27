@@ -9,7 +9,7 @@ from aol_llm.core.types import Conversation
 
 class ConversationList(Static):
     def compose(self) -> ComposeResult:
-        yield Label("Conversations", classes="panel-title")
+        yield Label("Buddy List", classes="panel-title")
         yield ListView(id="conversation-list")
 
     def set_conversations(self, conversations: list[Conversation]) -> None:

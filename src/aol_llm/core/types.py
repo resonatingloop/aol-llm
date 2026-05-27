@@ -6,6 +6,7 @@ from typing import Literal
 
 Role = Literal["user", "assistant"]
 ProviderKind = Literal["anthropic", "openai_compatible"]
+PromptStatus = Literal["draft", "canonical", "archived"]
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class Message:
     input_tokens: int | None = None
     output_tokens: int | None = None
     cost_usd: float | None = None
+    prompt_version_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -30,7 +32,64 @@ class Conversation:
     model: str
     created_at: datetime
     updated_at: datetime
+    buddy_id: str | None = None
+    prompt_version_id: str | None = None
     archived: bool = False
+
+
+@dataclass(frozen=True)
+class Buddy:
+    id: str
+    name: str
+    screen_name: str
+    provider_id: str
+    model: str
+    prompt_id: str | None
+    prompt_version_id: str | None
+    created_at: datetime
+    updated_at: datetime
+    archived: bool = False
+
+
+@dataclass(frozen=True)
+class Prompt:
+    id: str
+    name: str
+    gloss: str
+    core: str
+    signature: str | None
+    default_provider: str | None
+    default_model: str | None
+    status: PromptStatus
+    doorwords: str | None
+    horizon_minutes: int | None
+    mischief_range: str | None
+    dismissal_protocol: str | None
+    ritual_twin_id: str | None
+    current_version_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class PromptVersion:
+    id: str
+    prompt_id: str
+    parent_version_id: str | None
+    name: str
+    gloss: str
+    core: str
+    signature: str | None
+    default_provider: str | None
+    default_model: str | None
+    status: PromptStatus
+    doorwords: str | None
+    horizon_minutes: int | None
+    mischief_range: str | None
+    dismissal_protocol: str | None
+    ritual_twin_id: str | None
+    note: str | None
+    created_at: datetime
 
 
 @dataclass(frozen=True)

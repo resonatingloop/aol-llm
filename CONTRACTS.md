@@ -7,7 +7,14 @@ should not drift casually during the build.
 
 ## decisions
 
-- system prompt lives on the Conversation, not as a Message.
+- buddies are persistent TUI identities; a buddy owns the current provider, model,
+  and away-message prompt version.
+- away messages are reusable prompts. prompt versions are immutable snapshots.
+- conversations store the current/default prompt version, while assistant
+  messages store the exact prompt version used for generation.
+- `conversations.system_prompt` is legacy transitional storage. new runtime code
+  prefers prompt versions and falls back to `system_prompt` only for unmigrated
+  or corrupt rows.
 - ids are uuid4 hex strings.
 - timestamps are stored as ISO 8601 text in sqlite.
 - XDG dirs for config and db (`~/.config/aol-llm/`, `~/.local/share/aol-llm/`) via the `platformdirs` lib.
@@ -29,6 +36,7 @@ from typing import AsyncIterator, Literal, Protocol
 
 Role = Literal["user", "assistant"]
 ProviderKind = Literal["anthropic", "openai_compatible"]
+PromptStatus = Literal["draft", "canonical", "archived"]
 
 @dataclass(frozen=True)
 class Message:
@@ -41,17 +49,72 @@ class Message:
     input_tokens: int | None = None
     output_tokens: int | None = None
     cost_usd: float | None = None
+    prompt_version_id: str | None = None  # populated for generated assistant messages
 
 @dataclass(frozen=True)
 class Conversation:
     id: str
     title: str
-    system_prompt: str | None        # CANONICAL location for system; never put system in Message
+    system_prompt: str | None        # LEGACY fallback during prompt migration
     provider_id: str
     model: str
     created_at: datetime
     updated_at: datetime
+    buddy_id: str | None = None
+    prompt_version_id: str | None = None
     archived: bool = False
+
+@dataclass(frozen=True)
+class Buddy:
+    id: str
+    name: str
+    screen_name: str
+    provider_id: str
+    model: str
+    prompt_id: str | None
+    prompt_version_id: str | None
+    created_at: datetime
+    updated_at: datetime
+    archived: bool = False
+
+@dataclass(frozen=True)
+class Prompt:
+    id: str
+    name: str
+    gloss: str
+    core: str
+    signature: str | None
+    default_provider: str | None
+    default_model: str | None
+    status: PromptStatus
+    doorwords: str | None
+    horizon_minutes: int | None
+    mischief_range: str | None
+    dismissal_protocol: str | None
+    ritual_twin_id: str | None
+    current_version_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+@dataclass(frozen=True)
+class PromptVersion:
+    id: str
+    prompt_id: str
+    parent_version_id: str | None
+    name: str
+    gloss: str
+    core: str
+    signature: str | None
+    default_provider: str | None
+    default_model: str | None
+    status: PromptStatus
+    doorwords: str | None
+    horizon_minutes: int | None
+    mischief_range: str | None
+    dismissal_protocol: str | None
+    ritual_twin_id: str | None
+    note: str | None
+    created_at: datetime
 
 @dataclass(frozen=True)
 class ProviderConfig:
@@ -122,13 +185,15 @@ UI maps these to user-readable messages and decides whether to offer retry. prov
 ## sqlite schema
 
 ```sql
--- migrations/001_init.sql
+-- current schema after migrations
 CREATE TABLE conversations (
     id              TEXT PRIMARY KEY,
     title           TEXT NOT NULL,
     system_prompt   TEXT,
     provider_id     TEXT NOT NULL,
     model           TEXT NOT NULL,
+    buddy_id        TEXT,
+    prompt_version_id TEXT,
     created_at      TEXT NOT NULL,
     updated_at      TEXT NOT NULL,
     archived        INTEGER NOT NULL DEFAULT 0
@@ -143,6 +208,7 @@ CREATE TABLE messages (
     input_tokens    INTEGER,
     output_tokens   INTEGER,
     cost_usd        REAL,
+    prompt_version_id TEXT,
     created_at      TEXT NOT NULL
 );
 CREATE INDEX idx_messages_conv_created ON messages(conversation_id, created_at);
@@ -163,6 +229,26 @@ CREATE TABLE app_settings (
 );
 ```
 
+`002_buddies_prompts.sql` adds:
+
+- `buddies`: one row per Buddy List identity. each buddy stores its current
+  provider, model, prompt, and prompt version.
+- `prompts`: cross-buddy away-message cards with fields `name`, `gloss`, `core`,
+  optional `signature`, optional pinned provider/model, status
+  `draft|canonical|archived`, and nullable threshold36 fields (`doorwords`,
+  `horizon_minutes`, `mischief_range`, `dismissal_protocol`, `ritual_twin_id`).
+- `prompt_versions`: immutable full snapshots of every prompt field plus
+  `parent_version_id` and optional `note`.
+- `conversations.buddy_id` and `conversations.prompt_version_id`.
+- `messages.prompt_version_id` for assistant-message generation provenance.
+
+The migration seeds a default prompt/version and at least one default buddy so
+first run can start a chat without manual setup. Existing conversations are
+auto-migrated by deduplicating identical non-empty legacy `system_prompt`
+values, creating prompt/version records, linking conversations to the matching
+version, and backfilling assistant messages with the conversation prompt
+version. User messages leave `prompt_version_id` null.
+
 migrations live in `src/aol_llm/storage/migrations/` as numbered .sql files. db file at `platformdirs.user_data_dir("aol-llm") / "aol-llm.db"`. enable `PRAGMA foreign_keys = ON` on every connection.
 
 ## storage layer contract
@@ -171,15 +257,31 @@ migrations live in `src/aol_llm/storage/migrations/` as numbered .sql files. db 
 
 - `get_connection() -> sqlite3.Connection`
 - `init_db() -> None` (runs pending migrations)
-- `create_conversation(title, provider_id, model, system_prompt=None) -> Conversation`
+- `create_conversation(title, provider_id, model, system_prompt=None, buddy_id=None, prompt_version_id=None) -> Conversation`
 - `list_conversations(include_archived=False) -> list[Conversation]`
 - `get_conversation(id) -> Conversation`
 - `update_conversation(id, **fields) -> Conversation`
 - `delete_conversation(id) -> None`
 - `add_message(conversation_id, role, content, **usage_fields) -> Message`
 - `list_messages(conversation_id) -> list[Message]`
+- `list_buddies(include_archived=False) -> list[Buddy]`
+- `get_buddy(id) -> Buddy`
+- `create_prompt(...) -> Prompt`
+- `create_prompt_version(...) -> PromptVersion`
+- `get_prompt_version(id) -> PromptVersion`
 
 each function gets its own connection (sqlite is cheap). no global cursor, no implicit transactions hanging around.
+
+prompt resolution order:
+
+1. transient prompt version, once `/sys` exists.
+2. `conversation.prompt_version_id`.
+3. selected buddy's `prompt_version_id`.
+4. legacy `conversation.system_prompt`.
+
+Provider adapters still receive the effective system prompt separately from
+ordered user/assistant messages and translate it into each provider's required
+API format. Message roles remain limited to `user` and `assistant`.
 
 ## config & secrets
 
@@ -221,7 +323,7 @@ cost computed at send time when usage is known. unknown models log a warning and
 ## textual ui scope (looser, on purpose)
 
 screens:
-- `MainScreen`: sidebar `ConversationList`, central `ChatTranscript`, bottom `Composer`, top/bottom `StatusBar` (current model, token+cost running totals)
+- `MainScreen`: sidebar Buddy List, central `ChatTranscript`, bottom `Composer`, top/bottom `StatusBar` (current model, token+cost running totals)
 - `SettingsScreen`: provider config CRUD, api key entry (writes to keyring)
 - `ModelPickerModal`: switch model mid-chat
 - `ConfirmModal`: generic yes/no for destructive ops
@@ -229,7 +331,7 @@ screens:
 keybindings (use textual's BINDINGS):
 - `ctrl+n` new conversation
 - `f5` send (enter = newline in composer)
-- `f3` edit current conversation system prompt
+- `f3` edit current conversation away message
 - `f4` model picker
 - `f2` settings
 - `ctrl+r` retry last
@@ -249,7 +351,7 @@ step 3 (provider interface) done when: `providers/base.py` defines `Provider` pr
 
 step 4 (storage) done when: migrations apply cleanly to a fresh db; all storage functions have at least one test against an in-memory sqlite db; foreign key cascade verified.
 
-step 6 (textual shell) done when: app launches, MainScreen renders with a stub conversation list, composer accepts input, all bindings registered (can be no-ops). no provider integration yet.
+step 6 (textual shell) done when: app launches, MainScreen renders with a stub Buddy List, composer accepts input, all bindings registered (can be no-ops). no provider integration yet.
 
 step 7 (wire chat) done when: typing a message and pressing f5 sends to the configured provider, streams response into transcript, persists both user and assistant message with token counts and cost, status bar updates running totals.
 

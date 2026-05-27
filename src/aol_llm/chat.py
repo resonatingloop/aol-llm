@@ -64,10 +64,13 @@ class ChatService:
     def create_conversation(self) -> Conversation:
         provider_id = self._config.ui.default_provider
         settings = self._config.providers[provider_id]
+        buddy = db.ensure_buddy(provider_id, settings.default_model, self._db_path)
         return db.create_conversation(
             title="New chat",
             provider_id=provider_id,
             model=settings.default_model,
+            buddy_id=buddy.id,
+            prompt_version_id=buddy.prompt_version_id,
             path=self._db_path,
         )
 
@@ -93,10 +96,12 @@ class ChatService:
         system_prompt: str,
     ) -> Conversation:
         clean_prompt = system_prompt.strip() or None
+        prompt_version_id = self._create_away_message_version(clean_prompt)
         return db.update_conversation(
             conversation_id,
             path=self._db_path,
             system_prompt=clean_prompt,
+            prompt_version_id=prompt_version_id,
         )
 
     def archive_conversation(self, conversation_id: str) -> Conversation:
@@ -119,11 +124,14 @@ class ChatService:
             raise KeyError(f"unknown provider config: {provider_id}")
         if not model.strip():
             raise ValueError("model cannot be empty")
+        buddy = db.ensure_buddy(provider_id, model.strip(), self._db_path)
         return db.update_conversation(
             conversation_id,
             path=self._db_path,
             provider_id=provider_id,
             model=model.strip(),
+            buddy_id=buddy.id,
+            prompt_version_id=buddy.prompt_version_id,
         )
 
     def model_choices(self) -> list[ModelChoice]:
@@ -192,11 +200,12 @@ class ChatService:
             provider_config,
             self._api_key_getter(provider_config.id),
         )
+        system, prompt_version_id = self._resolve_system_prompt(conversation)
         assistant_text = ""
 
         async for chunk in provider.stream(
             messages=messages,
-            system=conversation.system_prompt,
+            system=system,
             model=conversation.model,
         ):
             if not chunk.done:
@@ -217,6 +226,7 @@ class ChatService:
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
                 cost_usd=cost_usd,
+                prompt_version_id=prompt_version_id,
             )
             db.update_conversation(
                 conversation_id,
@@ -234,6 +244,54 @@ class ChatService:
 
     def messages(self, conversation_id: str) -> list[Message]:
         return db.list_messages(conversation_id, self._db_path)
+
+    def _create_away_message_version(self, system_prompt: str | None) -> str:
+        if system_prompt is None:
+            return db.default_prompt_version(self._db_path).id
+        prompt = db.create_prompt(
+            name="Draft Away Message",
+            gloss="draft",
+            core=system_prompt,
+            path=self._db_path,
+            status="draft",
+        )
+        version = db.create_prompt_version(
+            prompt,
+            path=self._db_path,
+            note="created from conversation away message edit",
+        )
+        db.update_prompt_current_version(prompt.id, version.id, self._db_path)
+        return version.id
+
+    def _resolve_system_prompt(
+        self,
+        conversation: Conversation,
+    ) -> tuple[str | None, str | None]:
+        if conversation.prompt_version_id is not None:
+            try:
+                version = db.get_prompt_version(
+                    conversation.prompt_version_id,
+                    self._db_path,
+                )
+            except KeyError:
+                pass
+            else:
+                return version.core or None, version.id
+
+        if conversation.buddy_id is not None:
+            try:
+                buddy = db.get_buddy(conversation.buddy_id, self._db_path)
+            except KeyError:
+                pass
+            else:
+                if buddy.prompt_version_id is not None:
+                    version = db.get_prompt_version(
+                        buddy.prompt_version_id,
+                        self._db_path,
+                    )
+                    return version.core or None, version.id
+
+        return conversation.system_prompt, None
 
     def _provider_config(self, conversation: Conversation) -> ProviderConfig:
         settings = self._config.providers[conversation.provider_id]

@@ -33,16 +33,20 @@ Provider adapters translate AOL-LLM's internal request shape into provider-nativ
 API calls. Provider-native objects must not leak into UI, storage, or core app
 code.
 
-## system prompt contract
+## buddy and away-message contract
 
-System prompts are stored on the conversation, not as messages. A conversation
-has one canonical `system_prompt` field, and messages are limited to user and
-assistant roles for normal chat storage.
+Buddies are the persistent chat identities shown in the TUI Buddy List. A buddy
+owns the current provider, model, and away-message prompt version.
 
-Provider adapters receive the effective system prompt separately from ordered
-user/assistant messages and translate it into each provider's required API
-format. Imports or future compatibility layers may parse system-style content,
-but normalized runtime storage keeps system prompt state on the conversation.
+Away messages are reusable system-prompt cards. Prompt versions are immutable
+snapshots, so generated assistant messages can record the exact prompt version
+used at generation time. Conversation-level prompt fields track the current
+default for the thread; message-level prompt provenance is authoritative for
+historical output.
+
+Provider adapters still receive the effective system prompt separately from
+ordered user/assistant messages and translate it into each provider's required
+API format. Message roles remain limited to user and assistant.
 
 ## technical contracts
 
@@ -60,10 +64,10 @@ stable interfaces we agree not to casually drift from during implementation.
 - OpenAI-compatible provider adapter.
 - Provider/model configuration.
 - API key setup stored through `keyring`.
-- Local SQLite storage for conversations, messages, providers, settings, and
-  token/cost usage.
-- Streaming chat UI with conversation list, transcript, composer, model picker,
-  and status area.
+- Local SQLite storage for buddies, away-message prompts, prompt versions,
+  conversations, messages, providers, settings, and token/cost usage.
+- Streaming chat UI with Buddy List, transcript, composer, model picker, and
+  status area.
 - Retry last response from the UI.
 - Export current chat to Markdown and/or JSON.
 - README with install, run, configuration, and development instructions.
@@ -101,9 +105,9 @@ and schema choices match `CONTRACTS.md`.
 
 ### 3. Add tests early
 
-Add tests before building the full UI. Cover provider contracts, system prompt
-translation, request normalization, storage migrations, repository behavior,
-usage parsing, and cost calculation.
+Add tests before building the full UI. Cover provider contracts, away-message
+prompt translation, request normalization, storage migrations, repository
+behavior, usage parsing, and cost calculation.
 
 Done when: tests can run with `uv run pytest`, storage can be tested against a
 temporary database, and mocked provider tests cover normal stream completion plus
@@ -128,8 +132,9 @@ keys never touch config or SQLite, and missing-key behavior is user-actionable.
 
 ### 6. Implement storage repositories
 
-Build thin repository functions over stdlib `sqlite3` for conversations,
-messages, providers, settings, and usage/cost updates.
+Build thin repository functions over stdlib `sqlite3` for buddies, prompts,
+prompt versions, conversations, messages, providers, settings, and usage/cost
+updates.
 
 Done when: migrations apply to a fresh database, foreign keys are enforced, basic
 CRUD is covered by tests, and message deletion follows conversation cascade
@@ -137,8 +142,8 @@ rules.
 
 ### 7. Build Textual shell
 
-Create the app shell with `MainScreen`, conversation list, transcript, composer,
-status area, settings screen, model picker, and confirm modal.
+Create the app shell with `MainScreen`, Buddy List, transcript, composer, status
+area, settings screen, model picker, and confirm modal.
 
 Done when: the app launches, renders the core layout, accepts composer input,
 registers keybindings, and can operate with stubbed data.

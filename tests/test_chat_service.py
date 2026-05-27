@@ -65,11 +65,7 @@ async def test_send_message_streams_and_persists_messages(tmp_path: Path) -> Non
     )
     service.init()
     conversation = service.create_conversation()
-    conversation = db.update_conversation(
-        conversation.id,
-        path=db_path,
-        system_prompt="Be concise.",
-    )
+    conversation = service.update_system_prompt(conversation.id, "Be concise.")
 
     events = [event async for event in service.send_message(conversation.id, "hello")]
     messages = db.list_messages(conversation.id, db_path)
@@ -85,6 +81,13 @@ async def test_send_message_streams_and_persists_messages(tmp_path: Path) -> Non
     assert messages[1].input_tokens == 10
     assert messages[1].output_tokens == 20
     assert messages[1].cost_usd == 0.00005
+    assert (
+        messages[1].prompt_version_id
+        == db.get_conversation(
+            conversation.id,
+            db_path,
+        ).prompt_version_id
+    )
 
 
 def test_ensure_conversation_creates_default_when_empty(tmp_path: Path) -> None:
@@ -96,6 +99,8 @@ def test_ensure_conversation_creates_default_when_empty(tmp_path: Path) -> None:
     assert conversation.title == "New chat"
     assert conversation.provider_id == "anthropic"
     assert conversation.model == "claude-test"
+    assert conversation.buddy_id is not None
+    assert conversation.prompt_version_id is not None
 
 
 def test_management_methods_update_conversation(tmp_path: Path) -> None:
@@ -135,6 +140,67 @@ def test_update_system_prompt_sets_and_clears_prompt(tmp_path: Path) -> None:
 
     assert updated.system_prompt == "Be precise."
     assert cleared.system_prompt is None
+    assert updated.prompt_version_id is not None
+    assert (
+        cleared.prompt_version_id == db.default_prompt_version(tmp_path / "chat.db").id
+    )
+
+
+@pytest.mark.asyncio
+async def test_legacy_system_prompt_fallback_when_no_prompt_version(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chat.db"
+    seen_systems: list[str | None] = []
+
+    class LegacyProvider:
+        config: ProviderConfig
+
+        def __init__(self, config: ProviderConfig, api_key: str | None) -> None:
+            self.config = config
+            self.api_key = api_key
+
+        async def stream(
+            self,
+            messages: list[Message],
+            system: str | None,
+            model: str,
+            max_output_tokens: int = 4096,
+            temperature: float = 1.0,
+        ) -> AsyncIterator[StreamChunk]:
+            del messages, max_output_tokens, temperature
+            seen_systems.append(system)
+            yield StreamChunk(text="ok", done=False)
+            yield StreamChunk(
+                text="",
+                done=True,
+                usage=TokenUsage(input_tokens=1, output_tokens=1, model=model),
+            )
+
+    def legacy_provider_factory(
+        config: ProviderConfig,
+        api_key: str | None,
+    ) -> Provider:
+        return LegacyProvider(config, api_key)
+
+    service = ChatService(
+        db_path=db_path,
+        app_config=app_config(),
+        provider_factory=legacy_provider_factory,
+        api_key_getter=lambda provider_id: None,
+    )
+    service.init()
+    conversation = db.create_conversation(
+        "Legacy",
+        "anthropic",
+        "claude-test",
+        system_prompt="Legacy prompt.",
+        path=db_path,
+    )
+
+    _ = [event async for event in service.send_message(conversation.id, "hello")]
+
+    assert seen_systems == ["Legacy prompt."]
 
 
 def test_delete_conversation_removes_chat(tmp_path: Path) -> None:

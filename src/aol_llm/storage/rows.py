@@ -5,7 +5,15 @@ import json
 import sqlite3
 from typing import Literal, cast
 
-from aol_llm.core.types import Conversation, Message, ProviderConfig
+from aol_llm.core.types import (
+    Buddy,
+    Conversation,
+    Message,
+    Prompt,
+    PromptStatus,
+    PromptVersion,
+    ProviderConfig,
+)
 
 
 def format_dt(value: datetime) -> str:
@@ -31,6 +39,8 @@ def conversation_from_row(row: sqlite3.Row) -> Conversation:
         model=cast(str, row["model"]),
         created_at=parse_dt(cast(str, row["created_at"])),
         updated_at=parse_dt(cast(str, row["updated_at"])),
+        buddy_id=cast(str | None, row["buddy_id"]),
+        prompt_version_id=cast(str | None, row["prompt_version_id"]),
         archived=bool(row["archived"]),
     )
 
@@ -46,6 +56,65 @@ def message_from_row(row: sqlite3.Row) -> Message:
         input_tokens=cast(int | None, row["input_tokens"]),
         output_tokens=cast(int | None, row["output_tokens"]),
         cost_usd=cast(float | None, row["cost_usd"]),
+        prompt_version_id=cast(str | None, row["prompt_version_id"]),
+    )
+
+
+def buddy_from_row(row: sqlite3.Row) -> Buddy:
+    return Buddy(
+        id=cast(str, row["id"]),
+        name=cast(str, row["name"]),
+        screen_name=cast(str, row["screen_name"]),
+        provider_id=cast(str, row["provider_id"]),
+        model=cast(str, row["model"]),
+        prompt_id=cast(str | None, row["prompt_id"]),
+        prompt_version_id=cast(str | None, row["prompt_version_id"]),
+        created_at=parse_dt(cast(str, row["created_at"])),
+        updated_at=parse_dt(cast(str, row["updated_at"])),
+        archived=bool(row["archived"]),
+    )
+
+
+def prompt_from_row(row: sqlite3.Row) -> Prompt:
+    return Prompt(
+        id=cast(str, row["id"]),
+        name=cast(str, row["name"]),
+        gloss=cast(str, row["gloss"]),
+        core=cast(str, row["core"]),
+        signature=cast(str | None, row["signature"]),
+        default_provider=cast(str | None, row["default_provider"]),
+        default_model=cast(str | None, row["default_model"]),
+        status=cast(PromptStatus, row["status"]),
+        doorwords=cast(str | None, row["doorwords"]),
+        horizon_minutes=cast(int | None, row["horizon_minutes"]),
+        mischief_range=cast(str | None, row["mischief_range"]),
+        dismissal_protocol=cast(str | None, row["dismissal_protocol"]),
+        ritual_twin_id=cast(str | None, row["ritual_twin_id"]),
+        current_version_id=cast(str | None, row["current_version_id"]),
+        created_at=parse_dt(cast(str, row["created_at"])),
+        updated_at=parse_dt(cast(str, row["updated_at"])),
+    )
+
+
+def prompt_version_from_row(row: sqlite3.Row) -> PromptVersion:
+    return PromptVersion(
+        id=cast(str, row["id"]),
+        prompt_id=cast(str, row["prompt_id"]),
+        parent_version_id=cast(str | None, row["parent_version_id"]),
+        name=cast(str, row["name"]),
+        gloss=cast(str, row["gloss"]),
+        core=cast(str, row["core"]),
+        signature=cast(str | None, row["signature"]),
+        default_provider=cast(str | None, row["default_provider"]),
+        default_model=cast(str | None, row["default_model"]),
+        status=cast(PromptStatus, row["status"]),
+        doorwords=cast(str | None, row["doorwords"]),
+        horizon_minutes=cast(int | None, row["horizon_minutes"]),
+        mischief_range=cast(str | None, row["mischief_range"]),
+        dismissal_protocol=cast(str | None, row["dismissal_protocol"]),
+        ritual_twin_id=cast(str | None, row["ritual_twin_id"]),
+        note=cast(str | None, row["note"]),
+        created_at=parse_dt(cast(str, row["created_at"])),
     )
 
 

@@ -7,14 +7,26 @@ import sqlite3
 from typing import cast
 from uuid import uuid4
 
-from aol_llm.core.types import Conversation, Message, ProviderConfig, Role
+from aol_llm.core.types import (
+    Buddy,
+    Conversation,
+    Message,
+    Prompt,
+    PromptStatus,
+    PromptVersion,
+    ProviderConfig,
+    Role,
+)
 from aol_llm.storage.connection import get_connection as _get_connection
 from aol_llm.storage.connection import init_db as _init_db
 from aol_llm.storage.rows import (
+    buddy_from_row,
     conversation_from_row,
     db_value,
     format_dt,
     message_from_row,
+    prompt_from_row,
+    prompt_version_from_row,
     provider_from_row,
 )
 
@@ -32,6 +44,8 @@ def create_conversation(
     provider_id: str,
     model: str,
     system_prompt: str | None = None,
+    buddy_id: str | None = None,
+    prompt_version_id: str | None = None,
     path: Path | None = None,
 ) -> Conversation:
     now = _now()
@@ -43,14 +57,16 @@ def create_conversation(
         model=model,
         created_at=now,
         updated_at=now,
+        buddy_id=buddy_id,
+        prompt_version_id=prompt_version_id,
     )
     with get_connection(path) as connection:
         connection.execute(
             """
             INSERT INTO conversations
-                (id, title, system_prompt, provider_id, model, created_at, updated_at, archived)
+                (id, title, system_prompt, provider_id, model, buddy_id, prompt_version_id, created_at, updated_at, archived)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?)
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 conversation.id,
@@ -58,6 +74,8 @@ def create_conversation(
                 conversation.system_prompt,
                 conversation.provider_id,
                 conversation.model,
+                conversation.buddy_id,
+                conversation.prompt_version_id,
                 format_dt(conversation.created_at),
                 format_dt(conversation.updated_at),
                 int(conversation.archived),
@@ -93,7 +111,15 @@ def get_conversation(id: str, path: Path | None = None) -> Conversation:
 def update_conversation(
     id: str, path: Path | None = None, **fields: object
 ) -> Conversation:
-    allowed = {"title", "system_prompt", "provider_id", "model", "archived"}
+    allowed = {
+        "title",
+        "system_prompt",
+        "provider_id",
+        "model",
+        "buddy_id",
+        "prompt_version_id",
+        "archived",
+    }
     unknown = set(fields) - allowed
     if unknown:
         raise KeyError(f"unknown conversation fields: {', '.join(sorted(unknown))}")
@@ -125,6 +151,7 @@ def add_message(
     input_tokens: int | None = None,
     output_tokens: int | None = None,
     cost_usd: float | None = None,
+    prompt_version_id: str | None = None,
 ) -> Message:
     message = Message(
         id=uuid4().hex,
@@ -136,14 +163,15 @@ def add_message(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cost_usd=cost_usd,
+        prompt_version_id=prompt_version_id,
     )
     with get_connection(path) as connection:
         connection.execute(
             """
             INSERT INTO messages
-                (id, conversation_id, role, content, model, input_tokens, output_tokens, cost_usd, created_at)
+                (id, conversation_id, role, content, model, input_tokens, output_tokens, cost_usd, prompt_version_id, created_at)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 message.id,
@@ -154,6 +182,7 @@ def add_message(
                 message.input_tokens,
                 message.output_tokens,
                 message.cost_usd,
+                message.prompt_version_id,
                 format_dt(message.created_at),
             ),
         )
@@ -172,6 +201,305 @@ def list_messages(conversation_id: str, path: Path | None = None) -> list[Messag
 def delete_message(id: str, path: Path | None = None) -> None:
     with get_connection(path) as connection:
         connection.execute("DELETE FROM messages WHERE id = ?", (id,))
+
+
+def list_buddies(
+    include_archived: bool = False,
+    path: Path | None = None,
+) -> list[Buddy]:
+    sql = "SELECT * FROM buddies"
+    params: tuple[int, ...] = ()
+    if not include_archived:
+        sql += " WHERE archived = ?"
+        params = (0,)
+    sql += " ORDER BY updated_at DESC, created_at DESC"
+    with get_connection(path) as connection:
+        return [buddy_from_row(row) for row in connection.execute(sql, params)]
+
+
+def get_buddy(id: str, path: Path | None = None) -> Buddy:
+    with get_connection(path) as connection:
+        row = connection.execute("SELECT * FROM buddies WHERE id = ?", (id,)).fetchone()
+    if row is None:
+        raise KeyError(f"unknown buddy: {id}")
+    return buddy_from_row(row)
+
+
+def ensure_buddy(provider_id: str, model: str, path: Path | None = None) -> Buddy:
+    with get_connection(path) as connection:
+        row = connection.execute(
+            """
+            SELECT * FROM buddies
+            WHERE provider_id = ? AND model = ? AND archived = 0
+            ORDER BY updated_at DESC, created_at DESC
+            LIMIT 1
+            """,
+            (provider_id, model),
+        ).fetchone()
+    if row is not None:
+        return buddy_from_row(row)
+
+    default_version = default_prompt_version(path)
+    return create_buddy(
+        name=f"{provider_id} / {model}",
+        screen_name=f"{provider_id} / {model}",
+        provider_id=provider_id,
+        model=model,
+        prompt_id=default_version.prompt_id,
+        prompt_version_id=default_version.id,
+        path=path,
+    )
+
+
+def create_buddy(
+    name: str,
+    screen_name: str,
+    provider_id: str,
+    model: str,
+    prompt_id: str | None,
+    prompt_version_id: str | None,
+    path: Path | None = None,
+) -> Buddy:
+    now = _now()
+    buddy = Buddy(
+        id=uuid4().hex,
+        name=name,
+        screen_name=screen_name,
+        provider_id=provider_id,
+        model=model,
+        prompt_id=prompt_id,
+        prompt_version_id=prompt_version_id,
+        created_at=now,
+        updated_at=now,
+    )
+    with get_connection(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO buddies
+                (id, name, screen_name, provider_id, model, prompt_id, prompt_version_id, created_at, updated_at, archived)
+            VALUES
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                buddy.id,
+                buddy.name,
+                buddy.screen_name,
+                buddy.provider_id,
+                buddy.model,
+                buddy.prompt_id,
+                buddy.prompt_version_id,
+                format_dt(buddy.created_at),
+                format_dt(buddy.updated_at),
+                int(buddy.archived),
+            ),
+        )
+    return buddy
+
+
+def create_prompt(
+    name: str,
+    gloss: str,
+    core: str,
+    path: Path | None = None,
+    signature: str | None = None,
+    default_provider: str | None = None,
+    default_model: str | None = None,
+    status: PromptStatus = "draft",
+    doorwords: str | None = None,
+    horizon_minutes: int | None = None,
+    mischief_range: str | None = None,
+    dismissal_protocol: str | None = None,
+    ritual_twin_id: str | None = None,
+    current_version_id: str | None = None,
+) -> Prompt:
+    now = _now()
+    prompt = Prompt(
+        id=uuid4().hex,
+        name=name,
+        gloss=gloss,
+        core=core,
+        signature=signature,
+        default_provider=default_provider,
+        default_model=default_model,
+        status=status,
+        doorwords=doorwords,
+        horizon_minutes=horizon_minutes,
+        mischief_range=mischief_range,
+        dismissal_protocol=dismissal_protocol,
+        ritual_twin_id=ritual_twin_id,
+        current_version_id=current_version_id,
+        created_at=now,
+        updated_at=now,
+    )
+    with get_connection(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO prompts
+                (id, name, gloss, core, signature, default_provider, default_model,
+                 status, doorwords, horizon_minutes, mischief_range,
+                 dismissal_protocol, ritual_twin_id, current_version_id,
+                 created_at, updated_at)
+            VALUES
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                prompt.id,
+                prompt.name,
+                prompt.gloss,
+                prompt.core,
+                prompt.signature,
+                prompt.default_provider,
+                prompt.default_model,
+                prompt.status,
+                prompt.doorwords,
+                prompt.horizon_minutes,
+                prompt.mischief_range,
+                prompt.dismissal_protocol,
+                prompt.ritual_twin_id,
+                prompt.current_version_id,
+                format_dt(prompt.created_at),
+                format_dt(prompt.updated_at),
+            ),
+        )
+    return prompt
+
+
+def list_prompts(
+    status: PromptStatus | None = None,
+    path: Path | None = None,
+) -> list[Prompt]:
+    sql = "SELECT * FROM prompts"
+    params: tuple[str, ...] = ()
+    if status is not None:
+        sql += " WHERE status = ?"
+        params = (status,)
+    sql += " ORDER BY updated_at DESC, created_at DESC"
+    with get_connection(path) as connection:
+        return [prompt_from_row(row) for row in connection.execute(sql, params)]
+
+
+def get_prompt(id: str, path: Path | None = None) -> Prompt:
+    with get_connection(path) as connection:
+        row = connection.execute("SELECT * FROM prompts WHERE id = ?", (id,)).fetchone()
+    if row is None:
+        raise KeyError(f"unknown prompt: {id}")
+    return prompt_from_row(row)
+
+
+def create_prompt_version(
+    prompt: Prompt,
+    path: Path | None = None,
+    parent_version_id: str | None = None,
+    note: str | None = None,
+) -> PromptVersion:
+    version = PromptVersion(
+        id=uuid4().hex,
+        prompt_id=prompt.id,
+        parent_version_id=parent_version_id,
+        name=prompt.name,
+        gloss=prompt.gloss,
+        core=prompt.core,
+        signature=prompt.signature,
+        default_provider=prompt.default_provider,
+        default_model=prompt.default_model,
+        status=prompt.status,
+        doorwords=prompt.doorwords,
+        horizon_minutes=prompt.horizon_minutes,
+        mischief_range=prompt.mischief_range,
+        dismissal_protocol=prompt.dismissal_protocol,
+        ritual_twin_id=prompt.ritual_twin_id,
+        note=note,
+        created_at=_now(),
+    )
+    with get_connection(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO prompt_versions
+                (id, prompt_id, parent_version_id, name, gloss, core, signature,
+                 default_provider, default_model, status, doorwords,
+                 horizon_minutes, mischief_range, dismissal_protocol,
+                 ritual_twin_id, note, created_at)
+            VALUES
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                version.id,
+                version.prompt_id,
+                version.parent_version_id,
+                version.name,
+                version.gloss,
+                version.core,
+                version.signature,
+                version.default_provider,
+                version.default_model,
+                version.status,
+                version.doorwords,
+                version.horizon_minutes,
+                version.mischief_range,
+                version.dismissal_protocol,
+                version.ritual_twin_id,
+                version.note,
+                format_dt(version.created_at),
+            ),
+        )
+    return version
+
+
+def get_prompt_version(id: str, path: Path | None = None) -> PromptVersion:
+    with get_connection(path) as connection:
+        row = connection.execute(
+            "SELECT * FROM prompt_versions WHERE id = ?", (id,)
+        ).fetchone()
+    if row is None:
+        raise KeyError(f"unknown prompt version: {id}")
+    return prompt_version_from_row(row)
+
+
+def update_prompt_current_version(
+    prompt_id: str,
+    version_id: str,
+    path: Path | None = None,
+) -> Prompt:
+    with get_connection(path) as connection:
+        connection.execute(
+            """
+            UPDATE prompts
+            SET current_version_id = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (version_id, format_dt(_now()), prompt_id),
+        )
+    return get_prompt(prompt_id, path)
+
+
+def default_prompt_version(path: Path | None = None) -> PromptVersion:
+    with get_connection(path) as connection:
+        row = connection.execute(
+            """
+            SELECT prompt_versions.*
+            FROM prompt_versions
+            JOIN prompts ON prompts.current_version_id = prompt_versions.id
+            WHERE prompts.name = 'Available'
+            ORDER BY prompts.created_at
+            LIMIT 1
+            """
+        ).fetchone()
+    if row is None:
+        prompt = create_prompt(
+            name="Available",
+            gloss="ready to chat",
+            core="",
+            path=path,
+            status="canonical",
+        )
+        version = create_prompt_version(
+            prompt,
+            path=path,
+            note="seeded default away message",
+        )
+        update_prompt_current_version(prompt.id, version.id, path)
+        return version
+    return prompt_version_from_row(row)
 
 
 def save_provider(config: ProviderConfig, path: Path | None = None) -> None:

@@ -7,8 +7,11 @@ from aol_llm.core.errors import AuthError, ProviderError
 from aol_llm.core.pricing import ModelPricing, estimate_cost_usd
 from aol_llm.core.requests import normalize_chat_request
 from aol_llm.core.types import (
+    Buddy,
     Conversation,
     Message,
+    Prompt,
+    PromptVersion,
     ProviderConfig,
     StreamChunk,
     TokenUsage,
@@ -41,6 +44,61 @@ def test_conversation_stores_system_prompt_outside_messages() -> None:
     )
 
     assert conversation.system_prompt == "You are concise."
+
+
+def test_buddy_and_prompt_types_capture_current_state_and_versions() -> None:
+    now = datetime.now(UTC)
+    prompt = Prompt(
+        id="prompt-id",
+        name="Away",
+        gloss="gone testing",
+        core="Be precise.",
+        signature=None,
+        default_provider="anthropic",
+        default_model="claude-test",
+        status="canonical",
+        doorwords=None,
+        horizon_minutes=None,
+        mischief_range=None,
+        dismissal_protocol=None,
+        ritual_twin_id=None,
+        current_version_id="version-id",
+        created_at=now,
+        updated_at=now,
+    )
+    version = PromptVersion(
+        id="version-id",
+        prompt_id=prompt.id,
+        parent_version_id=None,
+        name=prompt.name,
+        gloss=prompt.gloss,
+        core=prompt.core,
+        signature=prompt.signature,
+        default_provider=prompt.default_provider,
+        default_model=prompt.default_model,
+        status=prompt.status,
+        doorwords=prompt.doorwords,
+        horizon_minutes=prompt.horizon_minutes,
+        mischief_range=prompt.mischief_range,
+        dismissal_protocol=prompt.dismissal_protocol,
+        ritual_twin_id=prompt.ritual_twin_id,
+        note="initial",
+        created_at=now,
+    )
+    buddy = Buddy(
+        id="buddy-id",
+        name="Buddy",
+        screen_name="buddy",
+        provider_id="anthropic",
+        model="claude-test",
+        prompt_id=prompt.id,
+        prompt_version_id=version.id,
+        created_at=now,
+        updated_at=now,
+    )
+
+    assert buddy.prompt_version_id == version.id
+    assert version.core == "Be precise."
 
 
 def test_provider_config_and_stream_chunk_shapes() -> None:

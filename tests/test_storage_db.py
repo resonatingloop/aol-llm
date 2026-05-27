@@ -23,7 +23,7 @@ def test_init_db_applies_migrations_idempotently(db_path: Path) -> None:
             for row in connection.execute("SELECT version FROM schema_migrations")
         ]
 
-    assert applied == ["001_init"]
+    assert applied == ["001_init", "002_buddies_prompts"]
 
 
 def test_conversation_crud_and_archive_filtering(db_path: Path) -> None:
@@ -60,6 +60,9 @@ def test_messages_preserve_usage_fields_and_order(db_path: Path) -> None:
         model="claude-sonnet-test",
         path=db_path,
     )
+    prompt = db.create_prompt("Away", "gloss", "Be brief.", path=db_path)
+    version = db.create_prompt_version(prompt, path=db_path)
+    db.update_prompt_current_version(prompt.id, version.id, db_path)
     user_message = db.add_message(
         conversation_id=conversation.id,
         role="user",
@@ -75,6 +78,7 @@ def test_messages_preserve_usage_fields_and_order(db_path: Path) -> None:
         input_tokens=10,
         output_tokens=20,
         cost_usd=0.001,
+        prompt_version_id=version.id,
     )
 
     messages = db.list_messages(conversation.id, db_path)
@@ -84,6 +88,7 @@ def test_messages_preserve_usage_fields_and_order(db_path: Path) -> None:
     assert messages[1].input_tokens == 10
     assert messages[1].output_tokens == 20
     assert messages[1].cost_usd == 0.001
+    assert messages[1].prompt_version_id == version.id
 
 
 def test_delete_message_removes_only_that_message(db_path: Path) -> None:
@@ -142,3 +147,39 @@ def test_app_settings_upsert(db_path: Path) -> None:
 
     assert db.get_app_setting("theme", db_path) == "dark"
     assert db.get_app_setting("missing", db_path) is None
+
+
+def test_seeded_default_prompt_and_buddy_are_available(db_path: Path) -> None:
+    version = db.default_prompt_version(db_path)
+    prompts = db.list_prompts(path=db_path)
+    buddies = db.list_buddies(path=db_path)
+
+    assert version.name == "Available"
+    assert prompts[0].current_version_id == version.id
+    assert buddies[0].prompt_version_id == version.id
+
+
+def test_prompt_version_snapshots_and_rollback_pointer(db_path: Path) -> None:
+    prompt = db.create_prompt(
+        "Away",
+        "short gloss",
+        "Be exact.",
+        path=db_path,
+        status="canonical",
+        doorwords="warp",
+    )
+    first = db.create_prompt_version(prompt, path=db_path, note="initial")
+    updated = db.update_prompt_current_version(prompt.id, first.id, db_path)
+
+    assert first.core == "Be exact."
+    assert first.doorwords == "warp"
+    assert first.note == "initial"
+    assert updated.current_version_id == first.id
+
+
+def test_ensure_buddy_reuses_provider_model_pair(db_path: Path) -> None:
+    first = db.ensure_buddy("anthropic", "claude-test", db_path)
+    second = db.ensure_buddy("anthropic", "claude-test", db_path)
+
+    assert first == second
+    assert first.prompt_version_id == db.default_prompt_version(db_path).id
