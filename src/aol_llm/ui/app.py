@@ -34,16 +34,13 @@ class AOLLLMApp(App[None]):
     async def on_mount(self) -> None:
         await self.push_screen(MainScreen())
         self._chat_service.init()
-        self._current_conversation = self._chat_service.ensure_conversation()
         self._refresh_conversation_list()
-        self._refresh_status_model()
-        self._load_current_transcript()
+        self._set_current_conversation(self._chat_service.ensure_conversation())
 
     def action_new_conversation(self) -> None:
-        self._current_conversation = self._chat_service.create_conversation()
+        conversation = self._chat_service.create_conversation()
         self._refresh_conversation_list()
-        self._refresh_status_model()
-        self._load_current_transcript()
+        self._set_current_conversation(conversation)
 
     async def action_send_message(self) -> None:
         if self._sending or self._current_conversation is None:
@@ -58,26 +55,16 @@ class AOLLLMApp(App[None]):
         composer.clear()
         transcript = self.screen.query_one(ChatTranscript)
         transcript.append_message("user", content)
-        assistant_message = transcript.append_message("assistant", "")
-        assistant_text = ""
 
         try:
-            async for event in self._chat_service.send_message(
-                self._current_conversation.id,
-                content,
-            ):
-                if not event.done:
-                    assistant_text += event.text
-                    assistant_message.update(f"assistant: {assistant_text}")
-                    transcript.scroll_to_end()
-                    continue
-                self.screen.query_one(StatusBar).add_usage(
-                    event.input_tokens,
-                    event.output_tokens,
-                    event.cost_usd,
-                )
+            await self._stream_assistant_response(
+                self._chat_service.send_message(
+                    self._current_conversation.id,
+                    content,
+                ),
+                show_provider_error=True,
+            )
         except ProviderError as error:
-            assistant_message.update(f"assistant: {error}")
             self.notify(str(error), severity="error")
         finally:
             self._sending = False
@@ -147,11 +134,10 @@ class AOLLLMApp(App[None]):
             return
         if event.index >= len(self._conversation_ids):
             return
-        self._current_conversation = self._chat_service.get_conversation(
+        conversation = self._chat_service.get_conversation(
             self._conversation_ids[event.index]
         )
-        self._refresh_status_model()
-        self._load_current_transcript()
+        self._set_current_conversation(conversation)
 
     def _rename_current_chat(self, title: str | None) -> None:
         if self._current_conversation is None or title is None:
@@ -199,24 +185,25 @@ class AOLLLMApp(App[None]):
         if self._current_conversation is None or not confirmed:
             return
         self._chat_service.archive_conversation(self._current_conversation.id)
-        self._current_conversation = self._chat_service.ensure_conversation()
         self._refresh_conversation_list()
-        self._refresh_status_model()
-        self._load_current_transcript()
+        self._set_current_conversation(self._chat_service.ensure_conversation())
 
     def _delete_current_chat(self, confirmed: bool | None) -> None:
         if self._current_conversation is None or not confirmed:
             return
         self._chat_service.delete_conversation(self._current_conversation.id)
-        self._current_conversation = self._chat_service.ensure_conversation()
         self._refresh_conversation_list()
-        self._refresh_status_model()
-        self._load_current_transcript()
+        self._set_current_conversation(self._chat_service.ensure_conversation())
 
     def _refresh_conversation_list(self) -> None:
         conversations = self._chat_service.list_conversations()
         self._conversation_ids = [conversation.id for conversation in conversations]
         self.screen.query_one(ConversationList).set_conversations(conversations)
+
+    def _set_current_conversation(self, conversation: Conversation) -> None:
+        self._current_conversation = conversation
+        self._refresh_status_model()
+        self._load_current_transcript()
 
     def _refresh_status_model(self) -> None:
         if self._current_conversation is None:
@@ -243,21 +230,28 @@ class AOLLLMApp(App[None]):
     async def _stream_assistant_response(
         self,
         events: AsyncIterator[ChatEvent],
+        *,
+        show_provider_error: bool = False,
     ) -> None:
         transcript = self.screen.query_one(ChatTranscript)
         assistant_message = transcript.append_message("assistant", "")
         assistant_text = ""
-        async for event in events:
-            if not event.done:
-                assistant_text += event.text
-                assistant_message.update(f"assistant: {assistant_text}")
-                transcript.scroll_to_end()
-                continue
-            self.screen.query_one(StatusBar).add_usage(
-                event.input_tokens,
-                event.output_tokens,
-                event.cost_usd,
-            )
+        try:
+            async for event in events:
+                if not event.done:
+                    assistant_text += event.text
+                    assistant_message.update(f"assistant: {assistant_text}")
+                    transcript.scroll_to_end()
+                    continue
+                self.screen.query_one(StatusBar).add_usage(
+                    event.input_tokens,
+                    event.output_tokens,
+                    event.cost_usd,
+                )
+        except ProviderError as error:
+            if show_provider_error:
+                assistant_message.update(f"assistant: {error}")
+            raise
 
 
 def run() -> None:
