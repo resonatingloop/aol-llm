@@ -24,9 +24,15 @@ class ChatTranscript(Static):
         yield Label("Transcript", classes="panel-title")
         yield VerticalScroll(id="transcript-body")
 
-    def append_message(self, role: str, content: str) -> Static:
+    def append_message(
+        self,
+        role: str,
+        content: str,
+        display_name: str | None = None,
+    ) -> Static:
         body = self.query_one("#transcript-body", VerticalScroll)
-        message = Static(f"{role}: {content}", classes=f"message {role}-message")
+        label = display_name if display_name is not None else role
+        message = Static(f"{label}: {content}", classes=f"message {role}-message")
         body.mount(message)
         body.scroll_end(animate=False)
         return message

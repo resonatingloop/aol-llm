@@ -133,6 +133,9 @@ class ChatService:
                 choices.append(ModelChoice(provider_id=provider_id, model=model))
         return choices
 
+    def assistant_name(self) -> str:
+        return self._config.ui.assistant_name
+
     def export_conversation(
         self,
         conversation_id: str,

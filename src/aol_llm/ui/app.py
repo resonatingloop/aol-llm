@@ -20,13 +20,15 @@ from aol_llm.ui.styles import APP_BINDINGS, APP_CSS
 from aol_llm.ui.widgets import ChatTranscript, Composer, ConversationList, StatusBar
 
 
-class AOLLLMApp(App[None]):
+class THRESHOLD36(App[None]):
+    TITLE = "THRESHOLD36"
     CSS = APP_CSS
     BINDINGS = APP_BINDINGS
 
     def __init__(self, chat_service: ChatService | None = None) -> None:
         super().__init__()
         self._chat_service = chat_service or ChatService()
+        self._assistant_name = self._chat_service.assistant_name()
         self._current_conversation: Conversation | None = None
         self._conversation_ids: list[str] = []
         self._sending = False
@@ -220,7 +222,11 @@ class AOLLLMApp(App[None]):
         transcript.clear_messages()
         messages = self._chat_service.messages(self._current_conversation.id)
         for message in messages:
-            transcript.append_message(message.role, message.content)
+            transcript.append_message(
+                message.role,
+                message.content,
+                self._display_name(message.role),
+            )
         self.screen.query_one(StatusBar).set_usage(
             sum(message.input_tokens or 0 for message in messages),
             sum(message.output_tokens or 0 for message in messages),
@@ -234,13 +240,19 @@ class AOLLLMApp(App[None]):
         show_provider_error: bool = False,
     ) -> None:
         transcript = self.screen.query_one(ChatTranscript)
-        assistant_message = transcript.append_message("assistant", "")
+        assistant_message = transcript.append_message(
+            "assistant",
+            "",
+            self._assistant_name,
+        )
         assistant_text = ""
         try:
             async for event in events:
                 if not event.done:
                     assistant_text += event.text
-                    assistant_message.update(f"assistant: {assistant_text}")
+                    assistant_message.update(
+                        f"{self._assistant_name}: {assistant_text}"
+                    )
                     transcript.scroll_to_end()
                     continue
                 self.screen.query_one(StatusBar).add_usage(
@@ -250,9 +262,14 @@ class AOLLLMApp(App[None]):
                 )
         except ProviderError as error:
             if show_provider_error:
-                assistant_message.update(f"assistant: {error}")
+                assistant_message.update(f"{self._assistant_name}: {error}")
             raise
+
+    def _display_name(self, role: str) -> str:
+        if role == "assistant":
+            return self._assistant_name
+        return role
 
 
 def run() -> None:
-    AOLLLMApp().run()
+    THRESHOLD36().run()

@@ -16,6 +16,7 @@ DB_FILENAME = "aol-llm.db"
 class UIConfig:
     theme: str = "default"
     default_provider: str = "anthropic"
+    assistant_name: str = "assistant"
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,7 @@ def _parse_config(data: dict[str, Any]) -> AppConfig:
         ui=UIConfig(
             theme=_str_value(ui_data, "theme", "default"),
             default_provider=_str_value(ui_data, "default_provider", "anthropic"),
+            assistant_name=_str_value(ui_data, "assistant_name", "assistant"),
         ),
         providers={
             provider_id: _parse_provider_settings(provider_data)
@@ -123,6 +125,7 @@ def _format_config(config: AppConfig) -> str:
         "[ui]",
         f'theme = "{_toml_escape(config.ui.theme)}"',
         f'default_provider = "{_toml_escape(config.ui.default_provider)}"',
+        f'assistant_name = "{_toml_escape(config.ui.assistant_name)}"',
         "",
     ]
     for provider_id in sorted(config.providers):

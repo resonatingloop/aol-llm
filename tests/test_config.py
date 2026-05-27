@@ -10,6 +10,7 @@ def test_load_config_returns_defaults_when_file_is_missing(tmp_path: Path) -> No
     loaded = config_module.load_config(tmp_path / "missing.toml")
 
     assert loaded.ui.default_provider == "anthropic"
+    assert loaded.ui.assistant_name == "assistant"
     assert loaded.providers["anthropic"].default_model == "claude-opus-4-7"
     assert loaded.providers["openai"].base_url == "https://api.openai.com/v1"
 
@@ -17,7 +18,11 @@ def test_load_config_returns_defaults_when_file_is_missing(tmp_path: Path) -> No
 def test_save_and_load_config_round_trips(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     original = AppConfig(
-        ui=UIConfig(theme="dark", default_provider="openai"),
+        ui=UIConfig(
+            theme="dark",
+            default_provider="openai",
+            assistant_name="THRESHOLD36",
+        ),
         providers={
             "anthropic": ProviderSettings(default_model="claude-sonnet-test"),
             "openai": ProviderSettings(
