@@ -6,7 +6,13 @@ from pathlib import Path
 
 from aol_llm.config import AppConfig, load_config
 from aol_llm.core.pricing import ModelPricing, estimate_cost_usd
-from aol_llm.core.types import Conversation, Message, ProviderConfig, ProviderKind
+from aol_llm.core.types import (
+    Buddy,
+    Conversation,
+    Message,
+    ProviderConfig,
+    ProviderKind,
+)
 from aol_llm.export import write_export
 from aol_llm.providers.base import Provider
 from aol_llm.providers.registry import build_provider
@@ -55,24 +61,41 @@ class ChatService:
         db.init_db(self._db_path)
 
     def ensure_conversation(self) -> Conversation:
-        conversations = db.list_conversations(path=self._db_path)
-        if conversations:
-            return conversations[0]
+        return self.ensure_conversation_for_buddy(self.default_buddy().id)
 
-        return self.create_conversation()
-
-    def create_conversation(self) -> Conversation:
+    def default_buddy(self) -> Buddy:
         provider_id = self._config.ui.default_provider
         settings = self._config.providers[provider_id]
-        buddy = db.ensure_buddy(provider_id, settings.default_model, self._db_path)
+        return db.ensure_buddy(provider_id, settings.default_model, self._db_path)
+
+    def list_buddies(self) -> list[Buddy]:
+        return db.list_buddies(path=self._db_path)
+
+    def get_buddy(self, buddy_id: str) -> Buddy:
+        return db.get_buddy(buddy_id, self._db_path)
+
+    def list_conversations_for_buddy(self, buddy_id: str) -> list[Conversation]:
+        return db.list_conversations_for_buddy(buddy_id, path=self._db_path)
+
+    def create_conversation(self) -> Conversation:
+        return self.create_conversation_for_buddy(self.default_buddy().id)
+
+    def create_conversation_for_buddy(self, buddy_id: str) -> Conversation:
+        buddy = db.get_buddy(buddy_id, self._db_path)
         return db.create_conversation(
             title="New chat",
-            provider_id=provider_id,
-            model=settings.default_model,
+            provider_id=buddy.provider_id,
+            model=buddy.model,
             buddy_id=buddy.id,
             prompt_version_id=buddy.prompt_version_id,
             path=self._db_path,
         )
+
+    def ensure_conversation_for_buddy(self, buddy_id: str) -> Conversation:
+        conversations = self.list_conversations_for_buddy(buddy_id)
+        if conversations:
+            return conversations[0]
+        return self.create_conversation_for_buddy(buddy_id)
 
     def list_conversations(self) -> list[Conversation]:
         return db.list_conversations(path=self._db_path)

@@ -66,8 +66,8 @@ stable interfaces we agree not to casually drift from during implementation.
 - API key setup stored through `keyring`.
 - Local SQLite storage for buddies, away-message prompts, prompt versions,
   conversations, messages, providers, settings, and token/cost usage.
-- Streaming chat UI with Buddy List, transcript, composer, model picker, and
-  status area.
+- Streaming chat UI with a two-pane Buddy List/sidebar, transcript, composer,
+  model picker, and status area.
 - Retry last response from the UI.
 - Export current chat to Markdown and/or JSON.
 - README with install, run, configuration, and development instructions.
@@ -142,8 +142,9 @@ rules.
 
 ### 7. Build Textual shell
 
-Create the app shell with `MainScreen`, Buddy List, transcript, composer, status
-area, settings screen, model picker, and confirm modal.
+Create the app shell with `MainScreen`, Buddy List plus selected-buddy chats,
+transcript, composer, status area, settings screen, model picker, and confirm
+modal.
 
 Done when: the app launches, renders the core layout, accepts composer input,
 registers keybindings, and can operate with stubbed data.

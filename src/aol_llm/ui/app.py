@@ -7,7 +7,7 @@ from textual.widgets import ListView
 
 from aol_llm.chat import ChatEvent, ChatService, ModelChoice
 from aol_llm.core.errors import ProviderError
-from aol_llm.core.types import Conversation
+from aol_llm.core.types import Buddy, Conversation
 from aol_llm.ui.modals import (
     ConfirmModal,
     ExportFormatModal,
@@ -17,7 +17,13 @@ from aol_llm.ui.modals import (
 )
 from aol_llm.ui.screens import MainScreen, SettingsScreen
 from aol_llm.ui.styles import APP_BINDINGS, APP_CSS
-from aol_llm.ui.widgets import ChatTranscript, Composer, ConversationList, StatusBar
+from aol_llm.ui.widgets import (
+    BuddyList,
+    ChatTranscript,
+    Composer,
+    ConversationList,
+    StatusBar,
+)
 
 
 class THRESHOLD36(App[None]):
@@ -29,6 +35,8 @@ class THRESHOLD36(App[None]):
         super().__init__()
         self._chat_service = chat_service or ChatService()
         self._assistant_name = self._chat_service.assistant_name()
+        self._current_buddy: Buddy | None = None
+        self._buddy_ids: list[str] = []
         self._current_conversation: Conversation | None = None
         self._conversation_ids: list[str] = []
         self._sending = False
@@ -36,11 +44,13 @@ class THRESHOLD36(App[None]):
     async def on_mount(self) -> None:
         await self.push_screen(MainScreen())
         self._chat_service.init()
-        self._refresh_conversation_list()
-        self._set_current_conversation(self._chat_service.ensure_conversation())
+        buddy = self._chat_service.default_buddy()
+        self._refresh_buddy_list()
+        self._set_current_buddy(buddy)
 
     def action_new_conversation(self) -> None:
-        conversation = self._chat_service.create_conversation()
+        buddy = self._current_buddy or self._chat_service.default_buddy()
+        conversation = self._chat_service.create_conversation_for_buddy(buddy.id)
         self._refresh_conversation_list()
         self._set_current_conversation(conversation)
 
@@ -132,10 +142,19 @@ class THRESHOLD36(App[None]):
         )
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if event.list_view.id == "buddy-list":
+            if event.index >= len(self._buddy_ids):
+                return
+            self._set_current_buddy(
+                self._chat_service.get_buddy(self._buddy_ids[event.index])
+            )
+            return
+
         if event.list_view.id != "conversation-list":
             return
         if event.index >= len(self._conversation_ids):
             return
+
         conversation = self._chat_service.get_conversation(
             self._conversation_ids[event.index]
         )
@@ -157,13 +176,14 @@ class THRESHOLD36(App[None]):
     def _switch_current_model(self, choice: ModelChoice | None) -> None:
         if self._current_conversation is None or choice is None:
             return
-        self._current_conversation = self._chat_service.switch_model(
+        conversation = self._chat_service.switch_model(
             self._current_conversation.id,
             choice.provider_id,
             choice.model,
         )
+        self._set_current_conversation(conversation)
+        self._refresh_buddy_list()
         self._refresh_conversation_list()
-        self._refresh_status_model()
 
     def _update_system_prompt(self, system_prompt: str | None) -> None:
         if self._current_conversation is None or system_prompt is None:
@@ -188,30 +208,64 @@ class THRESHOLD36(App[None]):
             return
         self._chat_service.archive_conversation(self._current_conversation.id)
         self._refresh_conversation_list()
-        self._set_current_conversation(self._chat_service.ensure_conversation())
+        self._set_current_conversation_for_current_buddy()
 
     def _delete_current_chat(self, confirmed: bool | None) -> None:
         if self._current_conversation is None or not confirmed:
             return
         self._chat_service.delete_conversation(self._current_conversation.id)
         self._refresh_conversation_list()
-        self._set_current_conversation(self._chat_service.ensure_conversation())
+        self._set_current_conversation_for_current_buddy()
+
+    def _refresh_buddy_list(self) -> None:
+        buddies = self._chat_service.list_buddies()
+        self._buddy_ids = [buddy.id for buddy in buddies]
+        self.screen.query_one(BuddyList).set_buddies(buddies)
 
     def _refresh_conversation_list(self) -> None:
-        conversations = self._chat_service.list_conversations()
+        if self._current_buddy is None:
+            conversations: list[Conversation] = []
+        else:
+            conversations = self._chat_service.list_conversations_for_buddy(
+                self._current_buddy.id
+            )
         self._conversation_ids = [conversation.id for conversation in conversations]
         self.screen.query_one(ConversationList).set_conversations(conversations)
 
+    def _set_current_buddy(self, buddy: Buddy) -> None:
+        self._current_buddy = buddy
+        self._refresh_conversation_list()
+        self._set_current_conversation_for_current_buddy()
+
+    def _set_current_conversation_for_current_buddy(self) -> None:
+        if self._current_buddy is None:
+            return
+        self._set_current_conversation(
+            self._chat_service.ensure_conversation_for_buddy(self._current_buddy.id)
+        )
+        self._refresh_conversation_list()
+
     def _set_current_conversation(self, conversation: Conversation) -> None:
         self._current_conversation = conversation
+        if conversation.buddy_id is not None and conversation.buddy_id != getattr(
+            self._current_buddy,
+            "id",
+            None,
+        ):
+            self._current_buddy = self._chat_service.get_buddy(conversation.buddy_id)
         self._refresh_status_model()
         self._load_current_transcript()
 
     def _refresh_status_model(self) -> None:
         if self._current_conversation is None:
             return
+        prefix = (
+            f"{self._current_buddy.screen_name} / "
+            if self._current_buddy is not None
+            else ""
+        )
         self.screen.query_one(StatusBar).set_model(
-            self._current_conversation.provider_id,
+            f"{prefix}{self._current_conversation.provider_id}",
             self._current_conversation.model,
         )
 

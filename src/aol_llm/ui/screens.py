@@ -5,7 +5,13 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Input, Label, Static
 
-from aol_llm.ui.widgets import ChatTranscript, Composer, ConversationList, StatusBar
+from aol_llm.ui.widgets import (
+    BuddyList,
+    ChatTranscript,
+    Composer,
+    ConversationList,
+    StatusBar,
+)
 
 
 class MainScreen(Screen[None]):
@@ -13,7 +19,9 @@ class MainScreen(Screen[None]):
         yield Header(show_clock=True)
         with Vertical(id="main-layout"):
             with Horizontal(id="workbench"):
-                yield ConversationList(id="sidebar")
+                with Vertical(id="sidebar"):
+                    yield BuddyList(id="buddy-pane")
+                    yield ConversationList(id="chat-list-pane")
                 with Vertical(id="chat-pane"):
                     yield ChatTranscript(id="chat-transcript")
                     yield Composer(id="composer")

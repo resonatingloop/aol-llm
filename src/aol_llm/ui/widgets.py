@@ -4,12 +4,24 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import Label, ListItem, ListView, Static, TextArea
 
-from aol_llm.core.types import Conversation
+from aol_llm.core.types import Buddy, Conversation
+
+
+class BuddyList(Static):
+    def compose(self) -> ComposeResult:
+        yield Label("Buddy List", classes="panel-title")
+        yield ListView(id="buddy-list")
+
+    def set_buddies(self, buddies: list[Buddy]) -> None:
+        list_view = self.query_one("#buddy-list", ListView)
+        list_view.clear()
+        for buddy in buddies:
+            list_view.append(ListItem(Label(buddy.screen_name)))
 
 
 class ConversationList(Static):
     def compose(self) -> ComposeResult:
-        yield Label("Buddy List", classes="panel-title")
+        yield Label("Chats", classes="panel-title")
         yield ListView(id="conversation-list")
 
     def set_conversations(self, conversations: list[Conversation]) -> None:

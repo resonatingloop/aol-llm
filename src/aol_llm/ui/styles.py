@@ -23,6 +23,20 @@ Screen {
     padding: 1;
 }
 
+#buddy-pane {
+    height: 1fr;
+}
+
+#chat-list-pane {
+    height: 1fr;
+    border-top: solid $panel;
+    padding-top: 1;
+}
+
+#buddy-list {
+    height: 1fr;
+}
+
 #conversation-list {
     height: 1fr;
 }

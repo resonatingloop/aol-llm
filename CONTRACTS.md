@@ -323,7 +323,7 @@ cost computed at send time when usage is known. unknown models log a warning and
 ## textual ui scope (looser, on purpose)
 
 screens:
-- `MainScreen`: sidebar Buddy List, central `ChatTranscript`, bottom `Composer`, top/bottom `StatusBar` (current model, token+cost running totals)
+- `MainScreen`: sidebar with Buddy List and selected-buddy Chats, central `ChatTranscript`, bottom `Composer`, top/bottom `StatusBar` (current model, token+cost running totals)
 - `SettingsScreen`: provider config CRUD, api key entry (writes to keyring)
 - `ModelPickerModal`: switch model mid-chat
 - `ConfirmModal`: generic yes/no for destructive ops
@@ -351,7 +351,7 @@ step 3 (provider interface) done when: `providers/base.py` defines `Provider` pr
 
 step 4 (storage) done when: migrations apply cleanly to a fresh db; all storage functions have at least one test against an in-memory sqlite db; foreign key cascade verified.
 
-step 6 (textual shell) done when: app launches, MainScreen renders with a stub Buddy List, composer accepts input, all bindings registered (can be no-ops). no provider integration yet.
+step 6 (textual shell) done when: app launches, MainScreen renders with a stub Buddy List and Chats pane, composer accepts input, all bindings registered (can be no-ops). no provider integration yet.
 
 step 7 (wire chat) done when: typing a message and pressing f5 sends to the configured provider, streams response into transcript, persists both user and assistant message with token counts and cost, status bar updates running totals.
 

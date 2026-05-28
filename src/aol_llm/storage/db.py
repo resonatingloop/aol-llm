@@ -98,6 +98,21 @@ def list_conversations(
         return [conversation_from_row(row) for row in connection.execute(sql, params)]
 
 
+def list_conversations_for_buddy(
+    buddy_id: str,
+    include_archived: bool = False,
+    path: Path | None = None,
+) -> list[Conversation]:
+    sql = "SELECT * FROM conversations WHERE buddy_id = ?"
+    params: tuple[object, ...] = (buddy_id,)
+    if not include_archived:
+        sql += " AND archived = ?"
+        params = (buddy_id, 0)
+    sql += " ORDER BY updated_at DESC, created_at DESC"
+    with get_connection(path) as connection:
+        return [conversation_from_row(row) for row in connection.execute(sql, params)]
+
+
 def get_conversation(id: str, path: Path | None = None) -> Conversation:
     with get_connection(path) as connection:
         row = connection.execute(

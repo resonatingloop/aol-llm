@@ -103,6 +103,45 @@ def test_ensure_conversation_creates_default_when_empty(tmp_path: Path) -> None:
     assert conversation.prompt_version_id is not None
 
 
+def test_default_buddy_uses_configured_provider_and_model(tmp_path: Path) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+    service.init()
+
+    buddy = service.default_buddy()
+
+    assert buddy.provider_id == "anthropic"
+    assert buddy.model == "claude-test"
+    assert buddy.prompt_version_id is not None
+    assert buddy in service.list_buddies()
+
+
+def test_create_conversation_for_buddy_copies_buddy_state(tmp_path: Path) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+    service.init()
+    buddy = db.ensure_buddy("anthropic", "claude-custom", tmp_path / "chat.db")
+
+    conversation = service.create_conversation_for_buddy(buddy.id)
+
+    assert conversation.buddy_id == buddy.id
+    assert conversation.provider_id == buddy.provider_id
+    assert conversation.model == buddy.model
+    assert conversation.prompt_version_id == buddy.prompt_version_id
+
+
+def test_ensure_conversation_for_buddy_reuses_latest_chat(tmp_path: Path) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+    service.init()
+    buddy = service.default_buddy()
+    first = service.create_conversation_for_buddy(buddy.id)
+    latest = service.create_conversation_for_buddy(buddy.id)
+
+    ensured = service.ensure_conversation_for_buddy(buddy.id)
+
+    assert ensured == latest
+    assert ensured != first
+    assert service.list_conversations_for_buddy(buddy.id) == [latest, first]
+
+
 def test_management_methods_update_conversation(tmp_path: Path) -> None:
     service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
     service.init()

@@ -53,6 +53,51 @@ def test_conversation_crud_and_archive_filtering(db_path: Path) -> None:
     assert db.list_conversations(include_archived=True, path=db_path) == [updated]
 
 
+def test_list_conversations_for_buddy_filters_history(db_path: Path) -> None:
+    first_buddy = db.ensure_buddy("anthropic", "claude-a", db_path)
+    second_buddy = db.ensure_buddy("anthropic", "claude-b", db_path)
+    first_chat = db.create_conversation(
+        "First",
+        first_buddy.provider_id,
+        first_buddy.model,
+        buddy_id=first_buddy.id,
+        prompt_version_id=first_buddy.prompt_version_id,
+        path=db_path,
+    )
+    archived_chat = db.create_conversation(
+        "Archived",
+        first_buddy.provider_id,
+        first_buddy.model,
+        buddy_id=first_buddy.id,
+        prompt_version_id=first_buddy.prompt_version_id,
+        path=db_path,
+    )
+    second_chat = db.create_conversation(
+        "Second",
+        second_buddy.provider_id,
+        second_buddy.model,
+        buddy_id=second_buddy.id,
+        prompt_version_id=second_buddy.prompt_version_id,
+        path=db_path,
+    )
+
+    archived_chat = db.update_conversation(
+        archived_chat.id,
+        path=db_path,
+        archived=True,
+    )
+
+    assert db.list_conversations_for_buddy(first_buddy.id, path=db_path) == [first_chat]
+    assert db.list_conversations_for_buddy(
+        first_buddy.id,
+        include_archived=True,
+        path=db_path,
+    ) == [archived_chat, first_chat]
+    assert db.list_conversations_for_buddy(second_buddy.id, path=db_path) == [
+        second_chat
+    ]
+
+
 def test_messages_preserve_usage_fields_and_order(db_path: Path) -> None:
     conversation = db.create_conversation(
         title="Chat",
