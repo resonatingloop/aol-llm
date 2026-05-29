@@ -240,6 +240,23 @@ def get_buddy(id: str, path: Path | None = None) -> Buddy:
     return buddy_from_row(row)
 
 
+def update_buddy(id: str, path: Path | None = None, **fields: object) -> Buddy:
+    allowed = {"name", "screen_name", "archived"}
+    unknown = set(fields) - allowed
+    if unknown:
+        raise KeyError(f"unknown buddy fields: {', '.join(sorted(unknown))}")
+    if not fields:
+        return get_buddy(id, path)
+
+    updated = {**fields, "updated_at": format_dt(_now())}
+    assignments = ", ".join(f"{field} = ?" for field in updated)
+    values = [db_value(value) for value in updated.values()]
+    values.append(id)
+    with get_connection(path) as connection:
+        connection.execute(f"UPDATE buddies SET {assignments} WHERE id = ?", values)
+    return get_buddy(id, path)
+
+
 def ensure_buddy(provider_id: str, model: str, path: Path | None = None) -> Buddy:
     with get_connection(path) as connection:
         row = connection.execute(

@@ -157,6 +157,27 @@ def test_management_methods_update_conversation(tmp_path: Path) -> None:
     assert service.list_conversations() == []
 
 
+def test_rename_buddy_updates_display_name(tmp_path: Path) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+    service.init()
+    buddy = service.default_buddy()
+
+    renamed = service.rename_buddy(buddy.id, "Threshold")
+
+    assert renamed.name == "Threshold"
+    assert renamed.screen_name == "Threshold"
+    assert service.get_buddy(buddy.id).screen_name == "Threshold"
+
+
+def test_rename_buddy_rejects_blank_name(tmp_path: Path) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+    service.init()
+    buddy = service.default_buddy()
+
+    with pytest.raises(ValueError, match="buddy name cannot be empty"):
+        service.rename_buddy(buddy.id, " ")
+
+
 def test_model_choices_include_current_anthropic_models(tmp_path: Path) -> None:
     service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
 

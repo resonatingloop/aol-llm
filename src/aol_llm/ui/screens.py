@@ -32,7 +32,7 @@ class MainScreen(Screen[None]):
 class SettingsScreen(Screen[None]):
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("f2", "app.pop_screen", "Back"),
+        ("f1", "app.pop_screen", "Back"),
     ]
 
     def compose(self) -> ComposeResult:

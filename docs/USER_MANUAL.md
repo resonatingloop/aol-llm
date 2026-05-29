@@ -118,22 +118,23 @@ editor and set API keys through keyring commands for now.
 
 | Key | Action |
 | --- | --- |
-| `ctrl+n` | New conversation |
-| `f5` | Send message |
-| `ctrl+t` | Rename current chat |
+| `f1` | Open settings |
+| `f2` | Pick model |
 | `f3` | Edit current conversation system prompt |
-| `f4` | Pick model |
-| `f2` | Open settings |
-| `ctrl+r` | Retry last response |
-| `ctrl+e` | Export current chat |
+| `f4` | Rename current buddy |
+| `f5` | Send message |
+| `f6` | New conversation |
+| `f7` | Retry last response |
+| `f8` | Rename current chat |
+| `f9` | Export current chat |
 | `ctrl+x` | Archive current chat |
 | `ctrl+d` | Delete current chat |
-| `ctrl+q` | Quit |
+| `ctrl+c` | Quit |
 | `escape` | Close settings or cancel a modal |
 
 Destructive actions ask for confirmation first.
 
-`f2` opens settings from the main screen and closes settings when pressed again.
+`f1` opens settings from the main screen and closes settings when pressed again.
 
 ## System Prompts
 
@@ -146,7 +147,7 @@ not changed.
 
 ## Export
 
-Use `ctrl+e` to export the current chat. Choose Markdown for a readable document
+Use `f9` to export the current chat. Choose Markdown for a readable document
 or JSON for structured data.
 
 When running with the default app database path, exports are written under:
@@ -187,13 +188,13 @@ uv run python -c 'import keyring; print("present" if keyring.get_password("aol-l
 
 ### Settings Shortcut Opens Terminal Settings
 
-The app uses `f2` for settings. Older builds used `ctrl+,`, which may conflict
+The app uses `f1` for settings. Older builds used `ctrl+,`, which may conflict
 with terminal emulator preferences.
 
 ### Provider Errors
 
 Provider errors appear in the transcript/status area. If a response fails after
-your user message is saved, use `ctrl+r` to retry the last response.
+your user message is saved, use `f7` to retry the last response.
 
 ### No Desktop Launcher Yet
 

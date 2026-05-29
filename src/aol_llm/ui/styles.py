@@ -100,15 +100,16 @@ Screen {
 """
 
 APP_BINDINGS: list[Binding | tuple[str, str] | tuple[str, str, str]] = [
-    Binding("ctrl+n", "new_conversation", "New", priority=True),
-    Binding("f5", "send_message", "Send", priority=True),
-    Binding("ctrl+t", "rename_current_chat", "Rename", priority=True),
+    Binding("f1", "open_settings", "Settings", priority=True),
+    Binding("f2", "open_model_picker", "Model", priority=True),
     Binding("f3", "edit_system_prompt", "System", priority=True),
-    Binding("f4", "open_model_picker", "Model", priority=True),
-    Binding("f2", "open_settings", "Settings", priority=True),
-    Binding("ctrl+r", "retry_last", "Retry", priority=True),
-    Binding("ctrl+e", "export_current_chat", "Export", priority=True),
+    Binding("f4", "rename_current_buddy", "Rename buddy", priority=True),
+    Binding("f5", "send_message", "Send", priority=True),
+    Binding("f6", "new_conversation", "New", priority=True),
+    Binding("f7", "retry_last", "Retry", priority=True),
+    Binding("f8", "rename_current_chat", "Rename chat", priority=True),
+    Binding("f9", "export_current_chat", "Export", priority=True),
     Binding("ctrl+x", "archive_current_chat", "Archive", priority=True),
     Binding("ctrl+d", "delete_current_chat", "Delete", priority=True),
-    Binding("ctrl+q", "quit", "Quit", priority=True),
+    Binding("ctrl+c", "quit", "Quit", priority=True),
 ]

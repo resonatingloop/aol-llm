@@ -72,13 +72,14 @@ class RenameModal(ModalScreen[str | None]):
     }
     """
 
-    def __init__(self, current_title: str) -> None:
+    def __init__(self, current_title: str, label: str = "Rename chat") -> None:
         super().__init__()
         self._current_title = current_title
+        self._label = label
 
     def compose(self) -> ComposeResult:
         with Vertical(id="rename-modal"):
-            yield Label("Rename chat")
+            yield Label(self._label)
             yield Input(value=self._current_title, id="rename-input")
             with Horizontal(classes="modal-actions"):
                 yield Button("Cancel", id="cancel-rename")

@@ -232,3 +232,19 @@ def test_ensure_buddy_reuses_provider_model_pair(db_path: Path) -> None:
 
     assert first == second
     assert first.prompt_version_id == db.default_prompt_version(db_path).id
+
+
+def test_update_buddy_renames_display_fields(db_path: Path) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-test", db_path)
+
+    updated = db.update_buddy(
+        buddy.id,
+        db_path,
+        name="Threshold",
+        screen_name="Threshold",
+    )
+
+    assert updated.name == "Threshold"
+    assert updated.screen_name == "Threshold"
+    assert updated.provider_id == buddy.provider_id
+    assert updated.model == buddy.model

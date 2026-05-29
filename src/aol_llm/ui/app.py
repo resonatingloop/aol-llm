@@ -90,6 +90,14 @@ class THRESHOLD36(App[None]):
             self._rename_current_chat,
         )
 
+    def action_rename_current_buddy(self) -> None:
+        if self._current_buddy is None:
+            return
+        self.push_screen(
+            RenameModal(self._current_buddy.screen_name, "Rename buddy"),
+            self._rename_current_buddy,
+        )
+
     def action_edit_system_prompt(self) -> None:
         if self._current_conversation is None:
             return
@@ -172,6 +180,20 @@ class THRESHOLD36(App[None]):
             self.notify(str(error), severity="error")
             return
         self._refresh_conversation_list()
+
+    def _rename_current_buddy(self, name: str | None) -> None:
+        if self._current_buddy is None or name is None:
+            return
+        try:
+            self._current_buddy = self._chat_service.rename_buddy(
+                self._current_buddy.id,
+                name,
+            )
+        except ValueError as error:
+            self.notify(str(error), severity="error")
+            return
+        self._refresh_buddy_list()
+        self._refresh_status_model()
 
     def _switch_current_model(self, choice: ModelChoice | None) -> None:
         if self._current_conversation is None or choice is None:

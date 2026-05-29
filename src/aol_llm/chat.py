@@ -118,6 +118,17 @@ class ChatService:
             title=clean_title,
         )
 
+    def rename_buddy(self, buddy_id: str, name: str) -> Buddy:
+        clean_name = name.strip()
+        if not clean_name:
+            raise ValueError("buddy name cannot be empty")
+        return db.update_buddy(
+            buddy_id,
+            path=self._db_path,
+            name=clean_name,
+            screen_name=clean_name,
+        )
+
     def update_system_prompt(
         self,
         conversation_id: str,
