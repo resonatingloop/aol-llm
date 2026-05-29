@@ -14,7 +14,7 @@ This checklist tracks the first public GitHub-ready iteration of aol-llm.
   basic troubleshooting.
 - [x] GitHub Actions runs pytest, ruff, formatting checks, and strict mypy.
 - [x] Textual MVP supports local conversations, streaming providers, model
-  switching, retry, archive/delete, system prompts, and export.
+  switching, retry, archive/delete, a-way messages, and export.
 - [x] Desktop target has been reassessed after the MVP.
 
 ## Before Tagging A Public Release

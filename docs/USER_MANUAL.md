@@ -120,7 +120,7 @@ transcript. Provider config and API keys are still edited manually for now.
 | --- | --- |
 | `f1` | Open settings |
 | `f2` | Pick model |
-| `f3` | Edit current conversation system prompt |
+| `f3` | Edit current conversation a-way |
 | `f4` | Rename current buddy |
 | `f5` | Send message |
 | `f6` | New conversation |
@@ -144,14 +144,14 @@ saved to `config.toml` under `[ui].assistant_name`.
 This is local display text only. Stored messages keep the `assistant` role, and
 provider requests are unchanged.
 
-## System Prompts
+## a-way Messages
 
-System prompts are per-conversation. Use `f3` to edit the current
-conversation's prompt. Save a blank prompt to clear it.
+a-way messages are per-conversation. Use `f3` to edit the current
+conversation's a-way. Save a blank a-way to clear it.
 
-System prompts are stored on the conversation record, not in the message list.
-Future sends in that conversation use the saved prompt; existing messages are
-not changed.
+a-way messages are stored on the conversation record, not in the message list.
+Future sends in that conversation use the saved a-way; existing messages are not
+changed.
 
 ## Export
 

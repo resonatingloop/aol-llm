@@ -20,7 +20,7 @@ def export_markdown(conversation: Conversation, messages: list[Message]) -> str:
         f"- Updated: `{conversation.updated_at.isoformat()}`",
     ]
     if conversation.system_prompt:
-        lines.extend(["", "## System Prompt", "", conversation.system_prompt])
+        lines.extend(["", "## a-way", "", conversation.system_prompt])
 
     lines.extend(["", "## Messages", ""])
     for message in messages:

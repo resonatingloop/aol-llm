@@ -527,7 +527,7 @@ def default_prompt_version(path: Path | None = None) -> PromptVersion:
         version = create_prompt_version(
             prompt,
             path=path,
-            note="seeded default away message",
+            note="seeded default a-way message",
         )
         update_prompt_current_version(prompt.id, version.id, path)
         return version

@@ -102,7 +102,7 @@ Screen {
 APP_BINDINGS: list[Binding | tuple[str, str] | tuple[str, str, str]] = [
     Binding("f1", "open_settings", "Settings", priority=True),
     Binding("f2", "open_model_picker", "Model", priority=True),
-    Binding("f3", "edit_system_prompt", "System", priority=True),
+    Binding("f3", "edit_system_prompt", "a-way", priority=True),
     Binding("f4", "rename_current_buddy", "Rename buddy", priority=True),
     Binding("f5", "send_message", "Send", priority=True),
     Binding("f6", "new_conversation", "New", priority=True),

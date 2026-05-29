@@ -301,7 +301,7 @@ class ChatService:
         if system_prompt is None:
             return db.default_prompt_version(self._db_path).id
         prompt = db.create_prompt(
-            name="Draft Away Message",
+            name="Draft a-way Message",
             gloss="draft",
             core=system_prompt,
             path=self._db_path,
@@ -310,7 +310,7 @@ class ChatService:
         version = db.create_prompt_version(
             prompt,
             path=self._db_path,
-            note="created from conversation away message edit",
+            note="created from conversation a-way edit",
         )
         db.update_prompt_current_version(prompt.id, version.id, self._db_path)
         return version.id

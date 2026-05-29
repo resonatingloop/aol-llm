@@ -46,7 +46,7 @@ def test_export_markdown_includes_system_messages_and_usage() -> None:
     content = export_markdown(conversation(), messages())
 
     assert "# Example Chat" in content
-    assert "## System Prompt\n\nBe concise." in content
+    assert "## a-way\n\nBe concise." in content
     assert "### User\n\nhello" in content
     assert "_Usage: input 1, output 2, cost $0.000010_" in content
 

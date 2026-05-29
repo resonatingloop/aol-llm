@@ -126,7 +126,7 @@ class SystemPromptModal(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="system-prompt-modal"):
-            yield Label("System prompt")
+            yield Label("a-way")
             yield TextArea(text=self._current_prompt, id="system-prompt-input")
             with Horizontal(classes="modal-actions"):
                 yield Button("Cancel", id="cancel-system-prompt")

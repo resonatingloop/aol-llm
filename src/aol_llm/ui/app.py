@@ -214,7 +214,7 @@ class THRESHOLD36(App[None]):
             self._current_conversation.id,
             system_prompt,
         )
-        self.notify("System prompt updated")
+        self.notify("a-way updated")
 
     def _update_settings(self, assistant_name: str | None) -> None:
         if assistant_name is None:

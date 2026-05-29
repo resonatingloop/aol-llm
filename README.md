@@ -140,7 +140,7 @@ Generated `dist/` files are ignored by git.
   streaming contract; provider-native objects do not cross into UI or storage.
 - Local-first storage: SQLite for conversations/messages/settings and keyring
   for API keys.
-- System prompts live on conversations, not as messages.
+- a-way messages live on conversations, not as messages.
 - Dataclasses and stdlib SQLite instead of pydantic or an ORM.
 - Tests are pulled forward and run through pytest, ruff, and strict mypy.
 
