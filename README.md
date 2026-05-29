@@ -28,7 +28,7 @@ Current Textual features:
 - Local conversation history in SQLite
 - Anthropic and OpenAI-compatible provider adapters
 - Streaming assistant responses
-- Per-conversation system prompts
+- Per-conversation a-way messages
 - Provider/model switching
 - Retry last response
 - Archive/delete with confirmation
@@ -75,7 +75,7 @@ theme = "default"
 default_provider = "anthropic"
 
 [providers.anthropic]
-default_model = "claude-opus-4-7"
+default_model = "claude-opus-4-8"
 
 [providers.openai]
 base_url = "https://api.openai.com/v1"

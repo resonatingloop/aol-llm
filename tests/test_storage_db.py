@@ -23,7 +23,11 @@ def test_init_db_applies_migrations_idempotently(db_path: Path) -> None:
             for row in connection.execute("SELECT version FROM schema_migrations")
         ]
 
-    assert applied == ["001_init", "002_buddies_prompts"]
+    assert applied == [
+        "001_init",
+        "002_buddies_prompts",
+        "003_anthropic_opus_4_8",
+    ]
 
 
 def test_conversation_crud_and_archive_filtering(db_path: Path) -> None:

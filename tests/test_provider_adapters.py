@@ -40,6 +40,18 @@ def anthropic_config() -> ProviderConfig:
     )
 
 
+def anthropic_opus_config(model: str) -> ProviderConfig:
+    return ProviderConfig(
+        id="anthropic",
+        kind="anthropic",
+        display_name="Anthropic",
+        base_url=None,
+        keyring_service="aol-llm.anthropic",
+        default_model=model,
+        available_models=[model],
+    )
+
+
 def openai_config() -> ProviderConfig:
     return ProviderConfig(
         id="openai",
@@ -106,6 +118,61 @@ async def test_anthropic_provider_streams_text_and_usage() -> None:
     payload = json.loads(route.calls.last.request.content)
     assert payload["system"] == "You are concise."
     assert payload["messages"] == [{"role": "user", "content": "hello"}]
+    assert payload["temperature"] == 1.0
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_anthropic_opus_4_8_uses_adaptive_thinking_without_temperature() -> None:
+    route = respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
+                {"type": "content_block_delta", "delta": {"thinking": "hidden"}},
+                {"type": "content_block_delta", "delta": {"text": "hi"}},
+                {"type": "message_delta", "usage": {"output_tokens": 5}},
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = AnthropicProvider(
+        config=anthropic_opus_config("claude-opus-4-8"),
+        api_key="test-key",
+    )
+
+    chunks = await collect(provider)
+
+    assert [chunk.text for chunk in chunks] == ["hi", ""]
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["thinking"] == {"type": "adaptive"}
+    assert "temperature" not in payload
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_anthropic_opus_4_7_omits_temperature() -> None:
+    route = respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
+                {"type": "content_block_delta", "delta": {"text": "hi"}},
+                {"type": "message_delta", "usage": {"output_tokens": 5}},
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = AnthropicProvider(
+        config=anthropic_opus_config("claude-opus-4-7"),
+        api_key="test-key",
+    )
+
+    await collect(provider)
+
+    payload = json.loads(route.calls.last.request.content)
+    assert "thinking" not in payload
+    assert "temperature" not in payload
 
 
 @respx.mock

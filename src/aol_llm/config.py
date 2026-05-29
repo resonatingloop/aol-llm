@@ -50,7 +50,7 @@ def database_path() -> Path:
 def default_config() -> AppConfig:
     return AppConfig(
         providers={
-            "anthropic": ProviderSettings(default_model="claude-opus-4-7"),
+            "anthropic": ProviderSettings(default_model="claude-opus-4-8"),
             "openai": ProviderSettings(
                 default_model="gpt-5",
                 base_url="https://api.openai.com/v1",

@@ -54,7 +54,18 @@ def test_all_migrations_add_buddy_prompt_tables_and_seed_defaults() -> None:
     }
     assert connection.execute("SELECT COUNT(*) FROM prompts").fetchone()[0] == 1
     assert connection.execute("SELECT COUNT(*) FROM prompt_versions").fetchone()[0] == 1
-    assert connection.execute("SELECT COUNT(*) FROM buddies").fetchone()[0] == 1
+    assert connection.execute("SELECT COUNT(*) FROM buddies").fetchone()[0] == 2
+    assert (
+        connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM buddies
+            WHERE provider_id = 'anthropic'
+              AND model = 'claude-opus-4-8'
+            """
+        ).fetchone()[0]
+        == 1
+    )
 
 
 def test_prompt_migration_links_existing_conversations_and_assistant_messages() -> None:

@@ -293,7 +293,7 @@ theme = "default"
 default_provider = "anthropic"
 
 [providers.anthropic]
-default_model = "claude-opus-4-7"
+default_model = "claude-opus-4-8"
 
 [providers.openai]
 base_url = "https://api.openai.com/v1"
@@ -312,13 +312,20 @@ or keep placeholder rates clearly marked in code and docs.
 
 ```json
 {
-  "claude-opus-4-7":  {"input_per_mtok": 15.0, "output_per_mtok": 75.0},
+  "claude-opus-4-8":  {"input_per_mtok": 5.0, "output_per_mtok": 25.0},
+  "claude-opus-4-7":  {"input_per_mtok": 5.0, "output_per_mtok": 25.0},
   "claude-sonnet-4-6": {"input_per_mtok": 3.0,  "output_per_mtok": 15.0},
   "gpt-5":             {"input_per_mtok": 5.0,  "output_per_mtok": 15.0}
 }
 ```
 
 cost computed at send time when usage is known. unknown models log a warning and set `cost_usd = NULL`. rates above are placeholders. before implementing live pricing defaults, verify current rates against provider pricing pages or leave placeholder rates clearly marked.
+
+Anthropic Claude Opus 4.8 uses the pinned model id `claude-opus-4-8`.
+Anthropic requests for Opus 4.8 enable adaptive thinking with
+`thinking: {"type": "adaptive"}`. Opus 4.8 and Opus 4.7 requests omit
+`temperature`, `top_p`, and `top_k`; non-default sampling parameters are rejected
+by those models.
 
 ## textual ui scope (looser, on purpose)
 

@@ -11,7 +11,7 @@ def test_load_config_returns_defaults_when_file_is_missing(tmp_path: Path) -> No
 
     assert loaded.ui.default_provider == "anthropic"
     assert loaded.ui.assistant_name == "assistant"
-    assert loaded.providers["anthropic"].default_model == "claude-opus-4-7"
+    assert loaded.providers["anthropic"].default_model == "claude-opus-4-8"
     assert loaded.providers["openai"].base_url == "https://api.openai.com/v1"
 
 

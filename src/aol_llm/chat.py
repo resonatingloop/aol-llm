@@ -22,7 +22,12 @@ from aol_llm.storage import db
 ProviderFactory = Callable[[ProviderConfig, str | None], Provider]
 ApiKeyGetter = Callable[[str], str | None]
 DEFAULT_PROVIDER_MODELS = {
-    "anthropic": ["claude-opus-4-7", "claude-sonnet-4-5-20250929"],
+    "anthropic": [
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-sonnet-4-6",
+        "claude-sonnet-4-5-20250929",
+    ],
     "openai": ["gpt-5"],
 }
 

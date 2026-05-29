@@ -35,13 +35,16 @@ class AnthropicProvider:
         payload = {
             "model": model,
             "max_tokens": max_output_tokens,
-            "temperature": temperature,
             "stream": True,
             "messages": [
                 {"role": message.role, "content": message.content}
                 for message in messages
             ],
         }
+        if _supports_adaptive_thinking(model):
+            payload["thinking"] = {"type": "adaptive"}
+        if not _rejects_sampling_parameters(model):
+            payload["temperature"] = temperature
         if system is not None:
             payload["system"] = system
 
@@ -98,3 +101,11 @@ class AnthropicProvider:
 
 def _optional_int(value: object) -> int | None:
     return value if isinstance(value, int) else None
+
+
+def _supports_adaptive_thinking(model: str) -> bool:
+    return model == "claude-opus-4-8"
+
+
+def _rejects_sampling_parameters(model: str) -> bool:
+    return model in {"claude-opus-4-8", "claude-opus-4-7"}
