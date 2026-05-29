@@ -116,7 +116,7 @@ class THRESHOLD36(App[None]):
         if isinstance(self.screen, SettingsScreen):
             self.pop_screen()
             return
-        self.push_screen(SettingsScreen())
+        self.push_screen(SettingsScreen(self._assistant_name), self._update_settings)
 
     async def action_retry_last(self) -> None:
         if self._sending or self._current_conversation is None:
@@ -215,6 +215,19 @@ class THRESHOLD36(App[None]):
             system_prompt,
         )
         self.notify("System prompt updated")
+
+    def _update_settings(self, assistant_name: str | None) -> None:
+        if assistant_name is None:
+            return
+        try:
+            self._assistant_name = self._chat_service.update_assistant_name(
+                assistant_name
+            )
+        except ValueError as error:
+            self.notify(str(error), severity="error")
+            return
+        self._load_current_transcript()
+        self.notify("Assistant display name updated")
 
     def _export_current_chat(self, format: str | None) -> None:
         if self._current_conversation is None or format is None:

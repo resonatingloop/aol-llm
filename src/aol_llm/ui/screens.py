@@ -3,7 +3,7 @@
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Input, Label, Static
+from textual.widgets import Button, Footer, Header, Input, Label, Static
 
 from aol_llm.ui.widgets import (
     BuddyList,
@@ -29,22 +29,37 @@ class MainScreen(Screen[None]):
         yield Footer()
 
 
-class SettingsScreen(Screen[None]):
+class SettingsScreen(Screen[str | None]):
     BINDINGS = [
-        ("escape", "app.pop_screen", "Back"),
-        ("f1", "app.pop_screen", "Back"),
+        ("escape", "cancel", "Back"),
+        ("f1", "cancel", "Back"),
     ]
+
+    def __init__(self, assistant_name: str) -> None:
+        super().__init__()
+        self._assistant_name = assistant_name
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with Vertical(id="settings-layout"):
             yield Label("Settings", classes="panel-title")
-            yield Input(placeholder="provider id", id="provider-id")
-            yield Input(placeholder="default model", id="default-model")
-            yield Input(placeholder="base url", id="base-url")
-            yield Input(placeholder="api key", password=True, id="api-key")
+            yield Label("Assistant display name")
+            yield Input(value=self._assistant_name, id="assistant-name")
+            with Horizontal(classes="modal-actions"):
+                yield Button("Save", id="save-settings", variant="primary")
             yield Static(
-                "settings editor is not wired yet; edit config/keyring manually",
+                "provider config and API keys are still edited manually",
                 id="settings-status",
             )
         yield Footer()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "assistant-name":
+            self.dismiss(event.value)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-settings":
+            self.dismiss(self.query_one("#assistant-name", Input).value)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)

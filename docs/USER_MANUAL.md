@@ -111,8 +111,8 @@ bottom as it streams.
 Type a message in the composer and send it with `f5`. Regular `enter`
 continues editing in the composer.
 
-The settings screen is currently a placeholder. Edit config with your text
-editor and set API keys through keyring commands for now.
+The settings screen can update the assistant display name used in the
+transcript. Provider config and API keys are still edited manually for now.
 
 ## Keybindings
 
@@ -135,6 +135,14 @@ editor and set API keys through keyring commands for now.
 Destructive actions ask for confirmation first.
 
 `f1` opens settings from the main screen and closes settings when pressed again.
+
+## Assistant Display Name
+
+Use `f1` to open settings and change the assistant display name. The setting is
+saved to `config.toml` under `[ui].assistant_name`.
+
+This is local display text only. Stored messages keep the `assistant` role, and
+provider requests are unchanged.
 
 ## System Prompts
 

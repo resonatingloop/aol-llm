@@ -178,6 +178,33 @@ def test_rename_buddy_rejects_blank_name(tmp_path: Path) -> None:
         service.rename_buddy(buddy.id, " ")
 
 
+def test_update_assistant_name_persists_config(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    service = ChatService(
+        db_path=tmp_path / "chat.db",
+        config_path=config_path,
+        app_config=app_config(),
+    )
+
+    updated = service.update_assistant_name("Threshold")
+    reloaded = ChatService(config_path=config_path)
+
+    assert updated == "Threshold"
+    assert service.assistant_name() == "Threshold"
+    assert reloaded.assistant_name() == "Threshold"
+
+
+def test_update_assistant_name_rejects_blank_name(tmp_path: Path) -> None:
+    service = ChatService(
+        db_path=tmp_path / "chat.db",
+        config_path=tmp_path / "config.toml",
+        app_config=app_config(),
+    )
+
+    with pytest.raises(ValueError, match="assistant name cannot be empty"):
+        service.update_assistant_name(" ")
+
+
 def test_model_choices_include_current_anthropic_models(tmp_path: Path) -> None:
     service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
 
