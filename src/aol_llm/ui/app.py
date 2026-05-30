@@ -8,6 +8,7 @@ from textual.widgets import ListView
 from aol_llm.chat import ChatEvent, ChatService, ModelChoice
 from aol_llm.core.errors import ProviderError
 from aol_llm.core.types import Buddy, Conversation
+from aol_llm.export import export_markdown
 from aol_llm.ui.modals import (
     ConfirmModal,
     ExportFormatModal,
@@ -137,6 +138,13 @@ class THRESHOLD36(App[None]):
 
     def action_export_current_chat(self) -> None:
         self.push_screen(ExportFormatModal(), self._export_current_chat)
+
+    def action_copy_current_chat(self) -> None:
+        if self._current_conversation is None:
+            return
+        messages = self._chat_service.messages(self._current_conversation.id)
+        self.copy_to_clipboard(export_markdown(self._current_conversation, messages))
+        self.notify("Copied chat to clipboard")
 
     def action_archive_current_chat(self) -> None:
         self.push_screen(
