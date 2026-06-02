@@ -115,6 +115,21 @@ def test_default_buddy_uses_configured_provider_and_model(tmp_path: Path) -> Non
     assert buddy in service.list_buddies()
 
 
+def test_init_seeds_buddies_for_configured_provider_defaults(tmp_path: Path) -> None:
+    service = ChatService(
+        db_path=tmp_path / "chat.db",
+        app_config=default_config(),
+    )
+
+    service.init()
+
+    assert {(buddy.provider_id, buddy.model) for buddy in service.list_buddies()} >= {
+        ("anthropic", "claude-opus-4-8"),
+        ("openai", "gpt-5"),
+        ("mistral", "mistral-small-2603"),
+    }
+
+
 def test_create_conversation_for_buddy_copies_buddy_state(tmp_path: Path) -> None:
     service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
     service.init()

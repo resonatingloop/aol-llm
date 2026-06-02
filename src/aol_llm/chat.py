@@ -66,6 +66,7 @@ class ChatService:
 
     def init(self) -> None:
         db.init_db(self._db_path)
+        self._ensure_configured_buddies()
 
     def ensure_conversation(self) -> Conversation:
         return self.ensure_conversation_for_buddy(self.default_buddy().id)
@@ -392,6 +393,10 @@ class ChatService:
         from aol_llm.config import user_data_dir
 
         return user_data_dir() / "exports"
+
+    def _ensure_configured_buddies(self) -> None:
+        for provider_id, settings in self._config.providers.items():
+            db.ensure_buddy(provider_id, settings.default_model, self._db_path)
 
 
 def _provider_models(provider_id: str, default_model: str) -> list[str]:

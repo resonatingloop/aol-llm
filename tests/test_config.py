@@ -31,6 +31,10 @@ def test_save_and_load_config_round_trips(tmp_path: Path) -> None:
                 default_model="gpt-test",
                 base_url="https://api.openai.test/v1",
             ),
+            "mistral": ProviderSettings(
+                default_model="mistral-test",
+                base_url="https://api.mistral.test/v1",
+            ),
         },
     )
 
@@ -39,6 +43,30 @@ def test_save_and_load_config_round_trips(tmp_path: Path) -> None:
 
     assert loaded == original
     assert "api_key" not in path.read_text(encoding="utf-8")
+
+
+def test_load_config_merges_missing_default_providers(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text(
+        "\n".join(
+            [
+                "[ui]",
+                'theme = "default"',
+                'default_provider = "anthropic"',
+                "",
+                "[providers.anthropic]",
+                'default_model = "claude-custom"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = config_module.load_config(path)
+
+    assert loaded.providers["anthropic"].default_model == "claude-custom"
+    assert loaded.providers["mistral"].default_model == "mistral-small-2603"
+    assert loaded.providers["mistral"].base_url == "https://api.mistral.ai/v1"
 
 
 def test_xdg_paths_use_platformdirs(

@@ -69,7 +69,7 @@ def load_config(path: Path | None = None) -> AppConfig:
         return default_config()
 
     data = tomllib.loads(target.read_text(encoding="utf-8"))
-    return _parse_config(data)
+    return _merge_default_providers(_parse_config(data))
 
 
 def save_config(config: AppConfig, path: Path | None = None) -> None:
@@ -107,6 +107,12 @@ def _parse_provider_settings(data: dict[str, Any]) -> ProviderSettings:
         default_model=_str_value(data, "default_model", ""),
         base_url=_optional_str_value(data, "base_url"),
     )
+
+
+def _merge_default_providers(config: AppConfig) -> AppConfig:
+    defaults = default_config()
+    providers = {**defaults.providers, **config.providers}
+    return AppConfig(ui=config.ui, providers=providers)
 
 
 def _dict_value(data: dict[str, Any], key: str) -> dict[str, Any]:
