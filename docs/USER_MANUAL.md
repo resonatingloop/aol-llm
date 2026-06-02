@@ -48,11 +48,15 @@ theme = "default"
 default_provider = "anthropic"
 
 [providers.anthropic]
-default_model = "claude-opus-4-7"
+default_model = "claude-opus-4-8"
 
 [providers.openai]
 base_url = "https://api.openai.com/v1"
 default_model = "gpt-5"
+
+[providers.mistral]
+base_url = "https://api.mistral.ai/v1"
+default_model = "mistral-small-2603"
 ```
 
 API keys are not stored in this file.
@@ -81,17 +85,21 @@ uv run python -c 'import keyring; keyring.set_password("aol-llm.anthropic", "api
 ```
 
 For OpenAI-compatible providers, replace `anthropic` with the provider id. For
-the default OpenAI-compatible config, that is:
+the default OpenAI-compatible configs, those are:
 
 ```text
 service:  aol-llm.openai
 username: api_key
+
+service:  aol-llm.mistral
+username: api_key
 ```
 
-Set that key with:
+Set those keys with:
 
 ```bash
 uv run python -c 'import keyring; keyring.set_password("aol-llm.openai", "api_key", "YOUR_KEY_HERE")'
+uv run python -c 'import keyring; keyring.set_password("aol-llm.mistral", "api_key", "YOUR_KEY_HERE")'
 ```
 
 ## Chat Basics

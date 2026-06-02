@@ -304,6 +304,10 @@ default_model = "claude-opus-4-8"
 [providers.openai]
 base_url = "https://api.openai.com/v1"
 default_model = "gpt-5"
+
+[providers.mistral]
+base_url = "https://api.mistral.ai/v1"
+default_model = "mistral-small-2603"
 ```
 
 api keys live in keyring under service `aol-llm.<provider_id>`, key `api_key`. accessed via `keyring.get_password("aol-llm.anthropic", "api_key")`. setup screen writes to keyring; never write keys to config.toml or anywhere on disk.

@@ -13,6 +13,8 @@ def test_load_config_returns_defaults_when_file_is_missing(tmp_path: Path) -> No
     assert loaded.ui.assistant_name == "assistant"
     assert loaded.providers["anthropic"].default_model == "claude-opus-4-8"
     assert loaded.providers["openai"].base_url == "https://api.openai.com/v1"
+    assert loaded.providers["mistral"].default_model == "mistral-small-2603"
+    assert loaded.providers["mistral"].base_url == "https://api.mistral.ai/v1"
 
 
 def test_save_and_load_config_round_trips(tmp_path: Path) -> None:
@@ -56,9 +58,12 @@ def test_xdg_paths_use_platformdirs(
 
 
 def test_provider_settings_resolves_configured_provider() -> None:
-    settings = config_module.provider_settings(config_module.default_config(), "openai")
+    settings = config_module.provider_settings(
+        config_module.default_config(), "mistral"
+    )
 
-    assert settings.default_model == "gpt-5"
+    assert settings.default_model == "mistral-small-2603"
+    assert settings.base_url == "https://api.mistral.ai/v1"
 
 
 def test_provider_settings_rejects_unknown_provider() -> None:

@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from aol_llm.chat import ChatService
-from aol_llm.config import AppConfig, ProviderSettings, UIConfig
+from aol_llm.config import AppConfig, ProviderSettings, UIConfig, default_config
 from aol_llm.core.pricing import ModelPricing
 from aol_llm.core.types import Message, ProviderConfig, StreamChunk, TokenUsage
 from aol_llm.providers.base import Provider
@@ -222,6 +222,14 @@ def test_model_choices_include_current_anthropic_models(tmp_path: Path) -> None:
         ("anthropic", "claude-opus-4-7"),
         ("anthropic", "claude-sonnet-4-6"),
         ("anthropic", "claude-sonnet-4-5-20250929"),
+    ]
+
+
+def test_model_choices_include_default_mistral_small() -> None:
+    service = ChatService(app_config=default_config())
+
+    assert ("mistral", "mistral-small-2603") in [
+        (choice.provider_id, choice.model) for choice in service.model_choices()
     ]
 
 

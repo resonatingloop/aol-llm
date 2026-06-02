@@ -29,6 +29,7 @@ DEFAULT_PROVIDER_MODELS = {
         "claude-sonnet-4-5-20250929",
     ],
     "openai": ["gpt-5"],
+    "mistral": ["mistral-small-2603"],
 }
 
 

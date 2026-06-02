@@ -80,6 +80,10 @@ default_model = "claude-opus-4-8"
 [providers.openai]
 base_url = "https://api.openai.com/v1"
 default_model = "gpt-5"
+
+[providers.mistral]
+base_url = "https://api.mistral.ai/v1"
+default_model = "mistral-small-2603"
 ```
 
 API keys are intentionally not stored in TOML or SQLite.
@@ -90,8 +94,8 @@ Set a key through Python `keyring`. For Anthropic:
 uv run python -c 'import keyring; keyring.set_password("aol-llm.anthropic", "api_key", "YOUR_KEY_HERE")'
 ```
 
-For the default OpenAI-compatible provider, use service `aol-llm.openai` and
-username `api_key`.
+For the default OpenAI-compatible providers, use service `aol-llm.openai` or
+`aol-llm.mistral` and username `api_key`.
 
 See [docs/USER_MANUAL.md](./docs/USER_MANUAL.md) for the current walkthrough.
 

@@ -55,6 +55,10 @@ def default_config() -> AppConfig:
                 default_model="gpt-5",
                 base_url="https://api.openai.com/v1",
             ),
+            "mistral": ProviderSettings(
+                default_model="mistral-small-2603",
+                base_url="https://api.mistral.ai/v1",
+            ),
         }
     )
 
