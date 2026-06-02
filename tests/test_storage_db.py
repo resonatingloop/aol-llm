@@ -27,6 +27,7 @@ def test_init_db_applies_migrations_idempotently(db_path: Path) -> None:
         "001_init",
         "002_buddies_prompts",
         "003_anthropic_opus_4_8",
+        "004_conversation_assistant_name",
     ]
 
 
@@ -55,6 +56,32 @@ def test_conversation_crud_and_archive_filtering(db_path: Path) -> None:
     assert updated.updated_at >= conversation.updated_at
     assert db.list_conversations(path=db_path) == []
     assert db.list_conversations(include_archived=True, path=db_path) == [updated]
+
+
+def test_conversation_reply_name_override_can_be_set_and_cleared(
+    db_path: Path,
+) -> None:
+    conversation = db.create_conversation(
+        title="First chat",
+        provider_id="anthropic",
+        model="claude-sonnet-test",
+        path=db_path,
+    )
+
+    updated = db.update_conversation(
+        conversation.id,
+        path=db_path,
+        assistant_name="Threshold",
+    )
+    cleared = db.update_conversation(
+        conversation.id,
+        path=db_path,
+        assistant_name=None,
+    )
+
+    assert conversation.assistant_name is None
+    assert updated.assistant_name == "Threshold"
+    assert cleared.assistant_name is None
 
 
 def test_list_conversations_for_buddy_filters_history(db_path: Path) -> None:

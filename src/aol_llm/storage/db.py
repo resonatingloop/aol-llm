@@ -46,6 +46,7 @@ def create_conversation(
     system_prompt: str | None = None,
     buddy_id: str | None = None,
     prompt_version_id: str | None = None,
+    assistant_name: str | None = None,
     path: Path | None = None,
 ) -> Conversation:
     now = _now()
@@ -59,14 +60,15 @@ def create_conversation(
         updated_at=now,
         buddy_id=buddy_id,
         prompt_version_id=prompt_version_id,
+        assistant_name=assistant_name,
     )
     with get_connection(path) as connection:
         connection.execute(
             """
             INSERT INTO conversations
-                (id, title, system_prompt, provider_id, model, buddy_id, prompt_version_id, created_at, updated_at, archived)
+                (id, title, system_prompt, provider_id, model, buddy_id, prompt_version_id, assistant_name, created_at, updated_at, archived)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 conversation.id,
@@ -76,6 +78,7 @@ def create_conversation(
                 conversation.model,
                 conversation.buddy_id,
                 conversation.prompt_version_id,
+                conversation.assistant_name,
                 format_dt(conversation.created_at),
                 format_dt(conversation.updated_at),
                 int(conversation.archived),
@@ -133,6 +136,7 @@ def update_conversation(
         "model",
         "buddy_id",
         "prompt_version_id",
+        "assistant_name",
         "archived",
     }
     unknown = set(fields) - allowed

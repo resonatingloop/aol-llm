@@ -41,6 +41,7 @@ def conversation_from_row(row: sqlite3.Row) -> Conversation:
         updated_at=parse_dt(cast(str, row["updated_at"])),
         buddy_id=cast(str | None, row["buddy_id"]),
         prompt_version_id=cast(str | None, row["prompt_version_id"]),
+        assistant_name=cast(str | None, row["assistant_name"]),
         archived=bool(row["archived"]),
     )
 

@@ -10,7 +10,11 @@ import re
 from aol_llm.core.types import Conversation, Message
 
 
-def export_markdown(conversation: Conversation, messages: list[Message]) -> str:
+def export_markdown(
+    conversation: Conversation,
+    messages: list[Message],
+    reply_name: str | None = None,
+) -> str:
     lines = [
         f"# {conversation.title}",
         "",
@@ -24,9 +28,12 @@ def export_markdown(conversation: Conversation, messages: list[Message]) -> str:
 
     lines.extend(["", "## Messages", ""])
     for message in messages:
+        label = (
+            reply_name if message.role == "assistant" and reply_name else message.role
+        )
         lines.extend(
             [
-                f"### {message.role.title()}",
+                f"### {label.title()}",
                 "",
                 message.content,
                 "",
@@ -38,11 +45,17 @@ def export_markdown(conversation: Conversation, messages: list[Message]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def export_json(conversation: Conversation, messages: list[Message]) -> str:
+def export_json(
+    conversation: Conversation,
+    messages: list[Message],
+    reply_name: str | None = None,
+) -> str:
     payload = {
         "conversation": _json_dataclass(conversation),
         "messages": [_json_dataclass(message) for message in messages],
     }
+    if reply_name is not None:
+        payload["reply_name"] = reply_name
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
@@ -51,14 +64,15 @@ def write_export(
     messages: list[Message],
     directory: Path,
     format: str,
+    reply_name: str | None = None,
 ) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     extension = _extension(format)
     path = directory / f"{_slug(conversation.title)}-{conversation.id}.{extension}"
     content = (
-        export_markdown(conversation, messages)
+        export_markdown(conversation, messages, reply_name=reply_name)
         if format == "markdown"
-        else export_json(conversation, messages)
+        else export_json(conversation, messages, reply_name=reply_name)
     )
     path.write_text(content, encoding="utf-8")
     return path

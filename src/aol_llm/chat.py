@@ -1,10 +1,10 @@
 """Chat orchestration between storage, config, secrets, and providers."""
 
 from collections.abc import AsyncIterator, Callable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
-from aol_llm.config import AppConfig, load_config, save_config
+from aol_llm.config import AppConfig, load_config
 from aol_llm.core.pricing import ModelPricing, estimate_cost_usd
 from aol_llm.core.types import (
     Buddy,
@@ -58,7 +58,6 @@ class ChatService:
         rate_card: Mapping[str, ModelPricing] | None = None,
     ) -> None:
         self._db_path = db_path
-        self._config_path = config_path
         self._config = app_config or load_config(config_path)
         self._provider_factory = provider_factory
         self._api_key_getter = api_key_getter
@@ -131,6 +130,23 @@ class ChatService:
             screen_name=clean_name,
         )
 
+    def conversation_reply_name(self, conversation_id: str) -> str:
+        return self._resolve_reply_name(
+            db.get_conversation(conversation_id, self._db_path)
+        )
+
+    def update_conversation_reply_name(
+        self,
+        conversation_id: str,
+        name: str,
+    ) -> Conversation:
+        clean_name = name.strip() or None
+        return db.update_conversation(
+            conversation_id,
+            path=self._db_path,
+            assistant_name=clean_name,
+        )
+
     def update_system_prompt(
         self,
         conversation_id: str,
@@ -182,20 +198,6 @@ class ChatService:
                 choices.append(ModelChoice(provider_id=provider_id, model=model))
         return choices
 
-    def assistant_name(self) -> str:
-        return self._config.ui.assistant_name
-
-    def update_assistant_name(self, name: str) -> str:
-        clean_name = name.strip()
-        if not clean_name:
-            raise ValueError("assistant name cannot be empty")
-        self._config = replace(
-            self._config,
-            ui=replace(self._config.ui, assistant_name=clean_name),
-        )
-        save_config(self._config, self._config_path)
-        return clean_name
-
     def export_conversation(
         self,
         conversation_id: str,
@@ -205,7 +207,13 @@ class ChatService:
         conversation = db.get_conversation(conversation_id, self._db_path)
         messages = db.list_messages(conversation_id, self._db_path)
         export_dir = directory or self._default_export_dir()
-        return write_export(conversation, messages, export_dir, format)
+        return write_export(
+            conversation,
+            messages,
+            export_dir,
+            format,
+            reply_name=self._resolve_reply_name(conversation),
+        )
 
     async def send_message(
         self,
@@ -344,6 +352,18 @@ class ChatService:
                     return version.core or None, version.id
 
         return conversation.system_prompt, None
+
+    def _resolve_reply_name(self, conversation: Conversation) -> str:
+        if conversation.assistant_name is not None:
+            return conversation.assistant_name
+        if conversation.buddy_id is not None:
+            try:
+                buddy = db.get_buddy(conversation.buddy_id, self._db_path)
+            except KeyError:
+                pass
+            else:
+                return buddy.screen_name or buddy.name
+        return "assistant"
 
     def _provider_config(self, conversation: Conversation) -> ProviderConfig:
         settings = self._config.providers[conversation.provider_id]

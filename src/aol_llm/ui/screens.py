@@ -35,31 +35,32 @@ class SettingsScreen(Screen[str | None]):
         ("f1", "cancel", "Back"),
     ]
 
-    def __init__(self, assistant_name: str) -> None:
+    def __init__(self, reply_name: str | None, default_reply_name: str) -> None:
         super().__init__()
-        self._assistant_name = assistant_name
+        self._reply_name = reply_name or ""
+        self._default_reply_name = default_reply_name
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with Vertical(id="settings-layout"):
             yield Label("Settings", classes="panel-title")
-            yield Label("Assistant display name")
-            yield Input(value=self._assistant_name, id="assistant-name")
+            yield Label("Reply name for this chat")
+            yield Input(value=self._reply_name, id="reply-name")
             with Horizontal(classes="modal-actions"):
                 yield Button("Save", id="save-settings", variant="primary")
             yield Static(
-                "provider config and API keys are still edited manually",
+                f"blank follows buddy name: {self._default_reply_name}",
                 id="settings-status",
             )
         yield Footer()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id == "assistant-name":
+        if event.input.id == "reply-name":
             self.dismiss(event.value)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-settings":
-            self.dismiss(self.query_one("#assistant-name", Input).value)
+            self.dismiss(self.query_one("#reply-name", Input).value)
 
     def action_cancel(self) -> None:
         self.dismiss(None)

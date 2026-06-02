@@ -111,8 +111,8 @@ bottom as it streams.
 Type a message in the composer and send it with `f5`. Regular `enter`
 continues editing in the composer.
 
-The settings screen can update the assistant display name used in the
-transcript. Provider config and API keys are still edited manually for now.
+The settings screen can update the reply name used by the current chat.
+Provider config and API keys are still edited manually for now.
 
 ## Keybindings
 
@@ -136,13 +136,13 @@ Destructive actions ask for confirmation first.
 
 `f1` opens settings from the main screen and closes settings when pressed again.
 
-## Assistant Display Name
+## Reply Name
 
-Use `f1` to open settings and change the assistant display name. The setting is
-saved to `config.toml` under `[ui].assistant_name`.
+Use `f1` to open settings and change the reply name for the current chat. Blank
+the field to follow the current buddy name.
 
-This is local display text only. Stored messages keep the `assistant` role, and
-provider requests are unchanged.
+This is local display text only. Stored messages still use the internal
+`assistant` role, and provider requests are unchanged.
 
 ## a-way Messages
 

@@ -34,6 +34,7 @@ class Conversation:
     updated_at: datetime
     buddy_id: str | None = None
     prompt_version_id: str | None = None
+    assistant_name: str | None = None
     archived: bool = False
 
 

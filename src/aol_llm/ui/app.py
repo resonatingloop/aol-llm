@@ -35,7 +35,6 @@ class THRESHOLD36(App[None]):
     def __init__(self, chat_service: ChatService | None = None) -> None:
         super().__init__()
         self._chat_service = chat_service or ChatService()
-        self._assistant_name = self._chat_service.assistant_name()
         self._current_buddy: Buddy | None = None
         self._buddy_ids: list[str] = []
         self._current_conversation: Conversation | None = None
@@ -117,7 +116,15 @@ class THRESHOLD36(App[None]):
         if isinstance(self.screen, SettingsScreen):
             self.pop_screen()
             return
-        self.push_screen(SettingsScreen(self._assistant_name), self._update_settings)
+        if self._current_conversation is None:
+            return
+        self.push_screen(
+            SettingsScreen(
+                self._current_conversation.assistant_name,
+                self._default_reply_name(),
+            ),
+            self._update_settings,
+        )
 
     async def action_retry_last(self) -> None:
         if self._sending or self._current_conversation is None:
@@ -143,7 +150,13 @@ class THRESHOLD36(App[None]):
         if self._current_conversation is None:
             return
         messages = self._chat_service.messages(self._current_conversation.id)
-        self.copy_to_clipboard(export_markdown(self._current_conversation, messages))
+        self.copy_to_clipboard(
+            export_markdown(
+                self._current_conversation,
+                messages,
+                reply_name=self._reply_name(),
+            )
+        )
         self.notify("Copied chat to clipboard")
 
     def action_archive_current_chat(self) -> None:
@@ -224,18 +237,15 @@ class THRESHOLD36(App[None]):
         )
         self.notify("a-way updated")
 
-    def _update_settings(self, assistant_name: str | None) -> None:
-        if assistant_name is None:
+    def _update_settings(self, reply_name: str | None) -> None:
+        if self._current_conversation is None or reply_name is None:
             return
-        try:
-            self._assistant_name = self._chat_service.update_assistant_name(
-                assistant_name
-            )
-        except ValueError as error:
-            self.notify(str(error), severity="error")
-            return
+        self._current_conversation = self._chat_service.update_conversation_reply_name(
+            self._current_conversation.id,
+            reply_name,
+        )
         self._load_current_transcript()
-        self.notify("Assistant display name updated")
+        self.notify("Reply name updated")
 
     def _export_current_chat(self, format: str | None) -> None:
         if self._current_conversation is None or format is None:
@@ -340,16 +350,14 @@ class THRESHOLD36(App[None]):
         assistant_message = transcript.append_message(
             "assistant",
             "",
-            self._assistant_name,
+            self._reply_name(),
         )
         assistant_text = ""
         try:
             async for event in events:
                 if not event.done:
                     assistant_text += event.text
-                    assistant_message.update(
-                        f"{self._assistant_name}: {assistant_text}"
-                    )
+                    assistant_message.update(f"{self._reply_name()}: {assistant_text}")
                     transcript.scroll_to_end()
                     continue
                 self.screen.query_one(StatusBar).add_usage(
@@ -359,13 +367,23 @@ class THRESHOLD36(App[None]):
                 )
         except ProviderError as error:
             if show_provider_error:
-                assistant_message.update(f"{self._assistant_name}: {error}")
+                assistant_message.update(f"{self._reply_name()}: {error}")
             raise
 
     def _display_name(self, role: str) -> str:
         if role == "assistant":
-            return self._assistant_name
+            return self._reply_name()
         return role
+
+    def _reply_name(self) -> str:
+        if self._current_conversation is None:
+            return "assistant"
+        return self._chat_service.conversation_reply_name(self._current_conversation.id)
+
+    def _default_reply_name(self) -> str:
+        if self._current_buddy is not None:
+            return self._current_buddy.screen_name or self._current_buddy.name
+        return "assistant"
 
 
 def run() -> None:

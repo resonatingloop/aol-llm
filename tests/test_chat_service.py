@@ -178,31 +178,37 @@ def test_rename_buddy_rejects_blank_name(tmp_path: Path) -> None:
         service.rename_buddy(buddy.id, " ")
 
 
-def test_update_assistant_name_persists_config(tmp_path: Path) -> None:
-    config_path = tmp_path / "config.toml"
-    service = ChatService(
-        db_path=tmp_path / "chat.db",
-        config_path=config_path,
-        app_config=app_config(),
-    )
+def test_conversation_reply_name_follows_buddy_rename(tmp_path: Path) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+    service.init()
+    conversation = service.create_conversation()
+    buddy_id = conversation.buddy_id
+    assert buddy_id is not None
 
-    updated = service.update_assistant_name("Threshold")
-    reloaded = ChatService(config_path=config_path)
+    service.rename_buddy(buddy_id, "Threshold")
 
-    assert updated == "Threshold"
-    assert service.assistant_name() == "Threshold"
-    assert reloaded.assistant_name() == "Threshold"
+    assert service.conversation_reply_name(conversation.id) == "Threshold"
 
 
-def test_update_assistant_name_rejects_blank_name(tmp_path: Path) -> None:
-    service = ChatService(
-        db_path=tmp_path / "chat.db",
-        config_path=tmp_path / "config.toml",
-        app_config=app_config(),
-    )
+def test_conversation_reply_name_override_can_be_set_and_cleared(
+    tmp_path: Path,
+) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+    service.init()
+    conversation = service.create_conversation()
+    buddy_id = conversation.buddy_id
+    assert buddy_id is not None
+    service.rename_buddy(buddy_id, "Threshold")
 
-    with pytest.raises(ValueError, match="assistant name cannot be empty"):
-        service.update_assistant_name(" ")
+    updated = service.update_conversation_reply_name(conversation.id, "  Oracle  ")
+
+    assert updated.assistant_name == "Oracle"
+    assert service.conversation_reply_name(updated.id) == "Oracle"
+
+    cleared = service.update_conversation_reply_name(conversation.id, "   ")
+
+    assert cleared.assistant_name is None
+    assert service.conversation_reply_name(cleared.id) == "Threshold"
 
 
 def test_model_choices_include_current_anthropic_models(tmp_path: Path) -> None:

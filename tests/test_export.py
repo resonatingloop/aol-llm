@@ -43,17 +43,21 @@ def messages() -> list[Message]:
 
 
 def test_export_markdown_includes_system_messages_and_usage() -> None:
-    content = export_markdown(conversation(), messages())
+    content = export_markdown(conversation(), messages(), reply_name="Threshold")
 
     assert "# Example Chat" in content
     assert "## a-way\n\nBe concise." in content
     assert "### User\n\nhello" in content
+    assert "### Threshold\n\nhi" in content
     assert "_Usage: input 1, output 2, cost $0.000010_" in content
 
 
 def test_export_json_serializes_conversation_and_messages() -> None:
-    payload = json.loads(export_json(conversation(), messages()))
+    payload = json.loads(
+        export_json(conversation(), messages(), reply_name="Threshold")
+    )
 
     assert payload["conversation"]["system_prompt"] == "Be concise."
+    assert payload["reply_name"] == "Threshold"
     assert payload["messages"][1]["role"] == "assistant"
     assert payload["messages"][1]["cost_usd"] == 0.00001

@@ -194,6 +194,7 @@ CREATE TABLE conversations (
     model           TEXT NOT NULL,
     buddy_id        TEXT,
     prompt_version_id TEXT,
+    assistant_name  TEXT,
     created_at      TEXT NOT NULL,
     updated_at      TEXT NOT NULL,
     archived        INTEGER NOT NULL DEFAULT 0
@@ -241,6 +242,11 @@ CREATE TABLE app_settings (
   `parent_version_id` and optional `note`.
 - `conversations.buddy_id` and `conversations.prompt_version_id`.
 - `messages.prompt_version_id` for assistant-message generation provenance.
+
+`004_conversation_assistant_name.sql` adds `conversations.assistant_name` as a
+nullable per-chat reply-name override. `NULL` means the transcript and exports
+follow the linked buddy's current display name. Message roles remain limited to
+`user` and `assistant`; the reply name is presentation metadata only.
 
 The migration seeds a default prompt/version and at least one default buddy so
 first run can start a chat without manual setup. Existing conversations are
@@ -331,20 +337,24 @@ by those models.
 
 screens:
 - `MainScreen`: sidebar with Buddy List and selected-buddy Chats, central `ChatTranscript`, bottom `Composer`, top/bottom `StatusBar` (current model, token+cost running totals)
-- `SettingsScreen`: provider config CRUD, api key entry (writes to keyring)
+- `SettingsScreen`: current-chat reply-name override
 - `ModelPickerModal`: switch model mid-chat
 - `ConfirmModal`: generic yes/no for destructive ops
 
 keybindings (use textual's BINDINGS):
-- `ctrl+n` new conversation
+- `f1` settings / current-chat reply name
+- `f2` model picker
+- `f3` edit current conversation a-way
+- `f4` rename current buddy
 - `f5` send (enter = newline in composer)
-- `f3` edit current conversation away message
-- `f4` model picker
-- `f2` settings
-- `ctrl+r` retry last
-- `ctrl+e` export current chat
+- `f6` new conversation
+- `f7` retry last
+- `f8` rename current chat
+- `f9` export current chat
+- `ctrl+y` copy current chat
+- `ctrl+x` archive current chat (with ConfirmModal)
 - `ctrl+d` delete current chat (with ConfirmModal)
-- `ctrl+q` quit
+- `ctrl+c` quit
 
 streaming UI: the ChatTranscript subscribes to the provider's `StreamChunk` async iterator and appends `chunk.text` as it arrives. on `done=True`, persists the message via `storage.add_message` with the usage fields.
 
