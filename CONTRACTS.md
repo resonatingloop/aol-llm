@@ -62,6 +62,7 @@ class Conversation:
     updated_at: datetime
     buddy_id: str | None = None
     prompt_version_id: str | None = None
+    assistant_name: str | None = None
     archived: bool = False
 
 @dataclass(frozen=True)
@@ -257,6 +258,13 @@ version. User messages leave `prompt_version_id` null.
 
 migrations live in `src/aol_llm/storage/migrations/` as numbered .sql files. db file at `platformdirs.user_data_dir("aol-llm") / "aol-llm.db"`. enable `PRAGMA foreign_keys = ON` on every connection.
 
+current migrations:
+
+- `001_init.sql`
+- `002_buddies_prompts.sql`
+- `003_anthropic_opus_4_8.sql`
+- `004_conversation_assistant_name.sql`
+
 ## storage layer contract
 
 `storage/db.py` exposes module-level functions, not a class. signatures roughly:
@@ -308,9 +316,20 @@ default_model = "gpt-5"
 [providers.mistral]
 base_url = "https://api.mistral.ai/v1"
 default_model = "mistral-small-2603"
+
+[providers.xai]
+base_url = "https://api.x.ai/v1"
+default_model = "grok-4.3"
 ```
 
 api keys live in keyring under service `aol-llm.<provider_id>`, key `api_key`. accessed via `keyring.get_password("aol-llm.anthropic", "api_key")`. setup screen writes to keyring; never write keys to config.toml or anywhere on disk.
+
+current built-in keyring services:
+
+- `aol-llm.anthropic`
+- `aol-llm.openai`
+- `aol-llm.mistral`
+- `aol-llm.xai`
 
 ## pricing
 
@@ -346,19 +365,19 @@ screens:
 - `ConfirmModal`: generic yes/no for destructive ops
 
 keybindings (use textual's BINDINGS):
-- `f1` settings / current-chat reply name
-- `f2` model picker
-- `f3` edit current conversation a-way
-- `f4` rename current buddy
-- `f5` send (enter = newline in composer)
-- `f6` new conversation
-- `f7` retry last
-- `f8` rename current chat
-- `f9` export current chat
-- `ctrl+y` copy current chat
-- `ctrl+x` archive current chat (with ConfirmModal)
-- `ctrl+d` delete current chat (with ConfirmModal)
-- `ctrl+c` quit
+- `f1` Settings
+- `f2` Model
+- `f3` a-way
+- `f4` Rename buddy
+- `f5` Send (enter = newline in composer)
+- `f6` New
+- `f7` Retry
+- `f8` Rename chat
+- `f9` Export
+- `ctrl+y` Copy
+- `ctrl+x` Archive (with ConfirmModal)
+- `ctrl+d` Delete (with ConfirmModal)
+- `ctrl+c` Quit
 
 streaming UI: the ChatTranscript subscribes to the provider's `StreamChunk` async iterator and appends `chunk.text` as it arrives. on `done=True`, persists the message via `storage.add_message` with the usage fields.
 
@@ -375,6 +394,40 @@ step 4 (storage) done when: migrations apply cleanly to a fresh db; all storage 
 step 6 (textual shell) done when: app launches, MainScreen renders with a stub Buddy List and Chats pane, composer accepts input, all bindings registered (can be no-ops). no provider integration yet.
 
 step 7 (wire chat) done when: typing a message and pressing f5 sends to the configured provider, streams response into transcript, persists both user and assistant message with token counts and cost, status bar updates running totals.
+
+---
+
+## documentation drift checks
+
+Every implementation slice must either check these manually or ask the user to
+check them:
+
+- whether `PROJECT_BRIEF.md` still reflects the desired product direction.
+- whether `CONTRACTS.md` decisions are still correct, not only mechanically
+  synchronized.
+- whether provider model ids and pricing are current against official provider
+  docs.
+- whether README/manual instructions are sufficient for a new user.
+- whether screenshots, terminal recordings, and release checklist items are
+  release-ready.
+- whether known-drift items in `docs/CODEBASE_SCHEMA.md` should remain as
+  notes or become fixes.
+- whether naming choices such as `a-way`, buddy labels, and reply-name language
+  still feel right.
+
+Automated tests cover only mechanically checkable claims: keybindings, provider
+defaults, keyring service names, migration lists, canonical dataclass fields,
+schema module coverage, validation command strings, and stale-name denylist
+checks.
+
+required validation commands:
+
+```bash
+uv run pytest
+uv run ruff check
+uv run ruff format --check
+uv run mypy --strict src tests
+```
 
 ---
 

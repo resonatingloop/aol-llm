@@ -82,13 +82,22 @@ this list still triggers the dependency approval rule.
 **During implementation:**
 - Implement one logical chunk at a time.
 - Run tests and tooling after each chunk.
+- After every implementation slice, run the docs drift checks in
+  `tests/test_docs_contracts.py` as part of the test suite. These are not
+  optional; they protect keybindings, provider defaults, keyring services,
+  migrations, dataclass contracts, codebase schema coverage, validation command
+  strings, and stale doc claims.
 - Surface contract ambiguities the moment you encounter them, not at the end.
 
 **End of session:**
-1. Run full test suite, ruff, and mypy.
-2. Summarize: files changed, tests added, any `TODO(agent):` markers left.
-3. Propose a commit message.
-4. Wait for instruction before pushing.
+1. Run full test suite, including `tests/test_docs_contracts.py`, plus ruff and
+   mypy.
+2. Perform the manual documentation drift audit listed in `CONTRACTS.md`, or ask
+   the user to check any item that cannot be verified by the agent.
+3. Summarize: files changed, tests added, manual docs-audit outcome, and any
+   `TODO(agent):` markers left.
+4. Propose a commit message.
+5. Wait for instruction before pushing.
 
 ## Stop-and-Ask Triggers
 

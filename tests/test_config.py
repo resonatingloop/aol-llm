@@ -15,6 +15,8 @@ def test_load_config_returns_defaults_when_file_is_missing(tmp_path: Path) -> No
     assert loaded.providers["openai"].base_url == "https://api.openai.com/v1"
     assert loaded.providers["mistral"].default_model == "mistral-small-2603"
     assert loaded.providers["mistral"].base_url == "https://api.mistral.ai/v1"
+    assert loaded.providers["xai"].default_model == "grok-4.3"
+    assert loaded.providers["xai"].base_url == "https://api.x.ai/v1"
 
 
 def test_save_and_load_config_round_trips(tmp_path: Path) -> None:
@@ -34,6 +36,10 @@ def test_save_and_load_config_round_trips(tmp_path: Path) -> None:
             "mistral": ProviderSettings(
                 default_model="mistral-test",
                 base_url="https://api.mistral.test/v1",
+            ),
+            "xai": ProviderSettings(
+                default_model="grok-test",
+                base_url="https://api.x.test/v1",
             ),
         },
     )
@@ -67,6 +73,8 @@ def test_load_config_merges_missing_default_providers(tmp_path: Path) -> None:
     assert loaded.providers["anthropic"].default_model == "claude-custom"
     assert loaded.providers["mistral"].default_model == "mistral-small-2603"
     assert loaded.providers["mistral"].base_url == "https://api.mistral.ai/v1"
+    assert loaded.providers["xai"].default_model == "grok-4.3"
+    assert loaded.providers["xai"].base_url == "https://api.x.ai/v1"
 
 
 def test_xdg_paths_use_platformdirs(

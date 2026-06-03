@@ -30,6 +30,7 @@ DEFAULT_PROVIDER_MODELS = {
     ],
     "openai": ["gpt-5"],
     "mistral": ["mistral-small-2603"],
+    "xai": ["grok-4.3"],
 }
 
 

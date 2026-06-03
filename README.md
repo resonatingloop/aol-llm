@@ -84,6 +84,10 @@ default_model = "gpt-5"
 [providers.mistral]
 base_url = "https://api.mistral.ai/v1"
 default_model = "mistral-small-2603"
+
+[providers.xai]
+base_url = "https://api.x.ai/v1"
+default_model = "grok-4.3"
 ```
 
 API keys are intentionally not stored in TOML or SQLite.
@@ -94,10 +98,28 @@ Set a key through Python `keyring`. For Anthropic:
 uv run python -c 'import keyring; keyring.set_password("aol-llm.anthropic", "api_key", "YOUR_KEY_HERE")'
 ```
 
-For the default OpenAI-compatible providers, use service `aol-llm.openai` or
-`aol-llm.mistral` and username `api_key`.
+For the default OpenAI-compatible providers, use service `aol-llm.openai`,
+`aol-llm.mistral`, or `aol-llm.xai` and username `api_key`.
 
 See [docs/USER_MANUAL.md](./docs/USER_MANUAL.md) for the current walkthrough.
+
+## Keybindings
+
+| Key | Action |
+| --- | --- |
+| `f1` | Settings |
+| `f2` | Model |
+| `f3` | a-way |
+| `f4` | Rename buddy |
+| `f5` | Send |
+| `f6` | New |
+| `f7` | Retry |
+| `f8` | Rename chat |
+| `f9` | Export |
+| `ctrl+y` | Copy |
+| `ctrl+x` | Archive |
+| `ctrl+d` | Delete |
+| `ctrl+c` | Quit |
 
 ## Development
 

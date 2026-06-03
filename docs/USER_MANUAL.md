@@ -57,6 +57,10 @@ default_model = "gpt-5"
 [providers.mistral]
 base_url = "https://api.mistral.ai/v1"
 default_model = "mistral-small-2603"
+
+[providers.xai]
+base_url = "https://api.x.ai/v1"
+default_model = "grok-4.3"
 ```
 
 API keys are not stored in this file.
@@ -93,6 +97,9 @@ username: api_key
 
 service:  aol-llm.mistral
 username: api_key
+
+service:  aol-llm.xai
+username: api_key
 ```
 
 Set those keys with:
@@ -100,6 +107,7 @@ Set those keys with:
 ```bash
 uv run python -c 'import keyring; keyring.set_password("aol-llm.openai", "api_key", "YOUR_KEY_HERE")'
 uv run python -c 'import keyring; keyring.set_password("aol-llm.mistral", "api_key", "YOUR_KEY_HERE")'
+uv run python -c 'import keyring; keyring.set_password("aol-llm.xai", "api_key", "YOUR_KEY_HERE")'
 ```
 
 ## Chat Basics
@@ -126,17 +134,18 @@ Provider config and API keys are still edited manually for now.
 
 | Key | Action |
 | --- | --- |
-| `f1` | Open settings |
-| `f2` | Pick model |
-| `f3` | Edit current conversation a-way |
-| `f4` | Rename current buddy |
-| `f5` | Send message |
-| `f6` | New conversation |
-| `f7` | Retry last response |
-| `f8` | Rename current chat |
-| `f9` | Export current chat |
-| `ctrl+x` | Archive current chat |
-| `ctrl+d` | Delete current chat |
+| `f1` | Settings |
+| `f2` | Model |
+| `f3` | a-way |
+| `f4` | Rename buddy |
+| `f5` | Send |
+| `f6` | New |
+| `f7` | Retry |
+| `f8` | Rename chat |
+| `f9` | Export |
+| `ctrl+y` | Copy |
+| `ctrl+x` | Archive |
+| `ctrl+d` | Delete |
 | `ctrl+c` | Quit |
 | `escape` | Close settings or cancel a modal |
 

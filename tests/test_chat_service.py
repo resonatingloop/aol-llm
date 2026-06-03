@@ -127,6 +127,7 @@ def test_init_seeds_buddies_for_configured_provider_defaults(tmp_path: Path) -> 
         ("anthropic", "claude-opus-4-8"),
         ("openai", "gpt-5"),
         ("mistral", "mistral-small-2603"),
+        ("xai", "grok-4.3"),
     }
 
 
@@ -244,6 +245,14 @@ def test_model_choices_include_default_mistral_small() -> None:
     service = ChatService(app_config=default_config())
 
     assert ("mistral", "mistral-small-2603") in [
+        (choice.provider_id, choice.model) for choice in service.model_choices()
+    ]
+
+
+def test_model_choices_include_default_xai_grok() -> None:
+    service = ChatService(app_config=default_config())
+
+    assert ("xai", "grok-4.3") in [
         (choice.provider_id, choice.model) for choice in service.model_choices()
     ]
 

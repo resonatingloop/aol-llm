@@ -59,6 +59,10 @@ def default_config() -> AppConfig:
                 default_model="mistral-small-2603",
                 base_url="https://api.mistral.ai/v1",
             ),
+            "xai": ProviderSettings(
+                default_model="grok-4.3",
+                base_url="https://api.x.ai/v1",
+            ),
         }
     )
 
