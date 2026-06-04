@@ -182,16 +182,18 @@ class ChatService:
     ) -> Conversation:
         if provider_id not in self._config.providers:
             raise KeyError(f"unknown provider config: {provider_id}")
-        if not model.strip():
+        clean_model = model.strip()
+        if not clean_model:
             raise ValueError("model cannot be empty")
-        buddy = db.ensure_buddy(provider_id, model.strip(), self._db_path)
+        conversation = db.get_conversation(conversation_id, self._db_path)
+        buddy = db.ensure_buddy(provider_id, clean_model, self._db_path)
         return db.update_conversation(
             conversation_id,
             path=self._db_path,
             provider_id=provider_id,
-            model=model.strip(),
+            model=clean_model,
             buddy_id=buddy.id,
-            prompt_version_id=buddy.prompt_version_id,
+            prompt_version_id=conversation.prompt_version_id or buddy.prompt_version_id,
         )
 
     def model_choices(self) -> list[ModelChoice]:

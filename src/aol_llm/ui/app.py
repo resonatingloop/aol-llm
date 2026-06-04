@@ -139,6 +139,7 @@ class THRESHOLD36(App[None]):
             )
         except (ProviderError, ValueError) as error:
             self.notify(str(error), severity="error")
+            self._load_current_transcript()
         finally:
             self._sending = False
             self._refresh_conversation_list()

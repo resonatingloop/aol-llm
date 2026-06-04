@@ -173,6 +173,42 @@ def test_management_methods_update_conversation(tmp_path: Path) -> None:
     assert service.list_conversations() == []
 
 
+def test_switch_model_preserves_conversation_a_way(tmp_path: Path) -> None:
+    db_path = tmp_path / "chat.db"
+    service = ChatService(db_path=db_path, app_config=app_config())
+    service.init()
+    conversation = service.create_conversation()
+    custom = service.update_system_prompt(conversation.id, "Use the red door.")
+    destination_buddy = db.ensure_buddy("anthropic", "claude-new", db_path)
+
+    switched = service.switch_model(custom.id, "anthropic", "claude-new")
+
+    assert switched.model == "claude-new"
+    assert switched.buddy_id == destination_buddy.id
+    assert switched.prompt_version_id == custom.prompt_version_id
+
+
+def test_switch_model_uses_buddy_prompt_when_conversation_has_none(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chat.db"
+    service = ChatService(db_path=db_path, app_config=app_config())
+    service.init()
+    conversation = db.create_conversation(
+        "Legacy",
+        "anthropic",
+        "claude-test",
+        path=db_path,
+    )
+    destination_buddy = db.ensure_buddy("anthropic", "claude-new", db_path)
+
+    switched = service.switch_model(conversation.id, "anthropic", "claude-new")
+
+    assert conversation.prompt_version_id is None
+    assert switched.buddy_id == destination_buddy.id
+    assert switched.prompt_version_id == destination_buddy.prompt_version_id
+
+
 def test_rename_buddy_updates_display_name(tmp_path: Path) -> None:
     service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
     service.init()

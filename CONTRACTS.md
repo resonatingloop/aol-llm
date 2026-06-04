@@ -293,6 +293,10 @@ prompt resolution order:
 3. selected buddy's `prompt_version_id`.
 4. legacy `conversation.system_prompt`.
 
+Switching provider/model preserves `conversation.prompt_version_id` when it is
+set. The destination buddy's prompt is used only as a fallback for conversations
+with no prompt version.
+
 Provider adapters still receive the effective system prompt separately from
 ordered user/assistant messages and translate it into each provider's required
 API format. Message roles remain limited to `user` and `assistant`.

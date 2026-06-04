@@ -164,6 +164,7 @@ retry_last_response
 
 switch_model
   move conversation provider/model and attach/create matching buddy
+  preserve conversation prompt version, falling back to buddy prompt only if missing
 
 update_system_prompt
   create prompt/version for the current chat a-way
@@ -321,12 +322,7 @@ uv run mypy --strict src tests
   lives in `core/pricing.py`, and newer built-in models have no rates.
 - Global `[ui].assistant_name` still parses and writes through config as legacy
   data, while runtime display now uses buddy/per-chat reply names.
-- Switching model/provider currently assigns the destination buddy's
-  `prompt_version_id` to the conversation, which can replace a custom chat
-  a-way.
 - Startup buddy seeding recreates default provider buddies if the matching buddy
   was archived, because `ensure_buddy` ignores archived rows.
-- Retry provider errors can leave a blank transient assistant message in the
-  visible transcript until the transcript reloads.
 - Large modules above the repo's soft size target: `storage/db.py`, `chat.py`,
   `ui/app.py`, and `ui/modals.py`.
