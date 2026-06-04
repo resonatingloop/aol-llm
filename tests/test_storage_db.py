@@ -261,6 +261,16 @@ def test_ensure_buddy_reuses_provider_model_pair(db_path: Path) -> None:
     assert first.prompt_version_id == db.default_prompt_version(db_path).id
 
 
+def test_buddy_exists_includes_archived_buddies(db_path: Path) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-test", db_path)
+
+    archived = db.update_buddy(buddy.id, db_path, archived=True)
+
+    assert archived.archived is True
+    assert db.buddy_exists("anthropic", "claude-test", db_path) is True
+    assert db.buddy_exists("anthropic", "missing", db_path) is False
+
+
 def test_update_buddy_renames_display_fields(db_path: Path) -> None:
     buddy = db.ensure_buddy("anthropic", "claude-test", db_path)
 

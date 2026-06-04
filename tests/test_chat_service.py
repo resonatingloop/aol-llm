@@ -131,6 +131,30 @@ def test_init_seeds_buddies_for_configured_provider_defaults(tmp_path: Path) -> 
     }
 
 
+def test_init_does_not_recreate_archived_default_buddy(tmp_path: Path) -> None:
+    db_path = tmp_path / "chat.db"
+    service = ChatService(db_path=db_path, app_config=app_config())
+    service.init()
+    buddy = service.default_buddy()
+    db.update_buddy(buddy.id, db_path, archived=True)
+
+    reloaded = ChatService(db_path=db_path, app_config=app_config())
+    reloaded.init()
+
+    matching_buddies = [
+        candidate
+        for candidate in db.list_buddies(include_archived=True, path=db_path)
+        if candidate.provider_id == "anthropic" and candidate.model == "claude-test"
+    ]
+
+    assert len(matching_buddies) == 1
+    assert matching_buddies[0].archived is True
+    assert all(
+        (buddy.provider_id, buddy.model) != ("anthropic", "claude-test")
+        for buddy in reloaded.list_buddies()
+    )
+
+
 def test_create_conversation_for_buddy_copies_buddy_state(tmp_path: Path) -> None:
     service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
     service.init()

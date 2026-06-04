@@ -152,6 +152,7 @@ Main responsibilities:
 init
   apply migrations
   ensure configured provider/default-model buddies exist
+  skip startup buddy seeding when a matching archived buddy exists
 
 send_message
   add user message
@@ -322,7 +323,5 @@ uv run mypy --strict src tests
   lives in `core/pricing.py`, and newer built-in models have no rates.
 - Global `[ui].assistant_name` still parses and writes through config as legacy
   data, while runtime display now uses buddy/per-chat reply names.
-- Startup buddy seeding recreates default provider buddies if the matching buddy
-  was archived, because `ensure_buddy` ignores archived rows.
 - Large modules above the repo's soft size target: `storage/db.py`, `chat.py`,
   `ui/app.py`, and `ui/modals.py`.

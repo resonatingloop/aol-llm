@@ -280,11 +280,17 @@ current migrations:
 - `list_messages(conversation_id) -> list[Message]`
 - `list_buddies(include_archived=False) -> list[Buddy]`
 - `get_buddy(id) -> Buddy`
+- `buddy_exists(provider_id, model) -> bool` (includes archived buddies)
 - `create_prompt(...) -> Prompt`
 - `create_prompt_version(...) -> PromptVersion`
 - `get_prompt_version(id) -> PromptVersion`
 
 each function gets its own connection (sqlite is cheap). no global cursor, no implicit transactions hanging around.
+
+Startup configured-provider buddy seeding respects archived matching buddies:
+if any buddy exists for the provider/model pair, active or archived, startup does
+not create a replacement. Explicit user actions such as model switching may
+still create an active buddy later through `ensure_buddy`.
 
 prompt resolution order:
 

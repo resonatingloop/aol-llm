@@ -261,6 +261,20 @@ def update_buddy(id: str, path: Path | None = None, **fields: object) -> Buddy:
     return get_buddy(id, path)
 
 
+def buddy_exists(provider_id: str, model: str, path: Path | None = None) -> bool:
+    with get_connection(path) as connection:
+        row = connection.execute(
+            """
+            SELECT 1
+            FROM buddies
+            WHERE provider_id = ? AND model = ?
+            LIMIT 1
+            """,
+            (provider_id, model),
+        ).fetchone()
+    return row is not None
+
+
 def ensure_buddy(provider_id: str, model: str, path: Path | None = None) -> Buddy:
     with get_connection(path) as connection:
         row = connection.execute(
