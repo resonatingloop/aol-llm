@@ -1,7 +1,9 @@
 from dataclasses import fields, is_dataclass
 from pathlib import Path
 
+from aol_llm.chat import DEFAULT_PROVIDER_MODELS
 from aol_llm.config import default_config
+from aol_llm.core.pricing import load_pricing_snapshot
 from aol_llm.core import types
 from aol_llm.ui.styles import APP_BINDINGS
 from textual.binding import Binding
@@ -30,6 +32,14 @@ def binding_rows() -> list[tuple[str, str]]:
         for binding in APP_BINDINGS
         if isinstance(binding, Binding)
     ]
+
+
+def built_in_models() -> set[str]:
+    models: set[str] = set()
+    for provider_id, settings in default_config().providers.items():
+        models.add(settings.default_model)
+        models.update(DEFAULT_PROVIDER_MODELS.get(provider_id, ()))
+    return models
 
 
 def test_documented_keybindings_match_app_bindings() -> None:
@@ -120,6 +130,31 @@ def test_validation_commands_are_documented() -> None:
             )
 
 
+def test_pricing_snapshot_covers_builtin_models() -> None:
+    snapshot = load_pricing_snapshot()
+    for model in built_in_models():
+        assert model in snapshot, f"pricing snapshot missing {model}"
+        entry = snapshot[model]
+        if entry.get("priced") is True:
+            assert isinstance(entry.get("input_per_mtok"), int | float)
+            assert isinstance(entry.get("output_per_mtok"), int | float)
+        else:
+            assert entry.get("priced") is False
+            assert isinstance(entry.get("reason"), str)
+
+
+def test_docs_describe_pricing_snapshot_contract() -> None:
+    required_phrases = (
+        "src/aol_llm/data/model_prices.json",
+        "scripts/refresh_pricing.py",
+        "missing_from_litellm_snapshot",
+    )
+    for doc_name in ("README.md", "CONTRACTS.md", "docs/CODEBASE_SCHEMA.md"):
+        content = read_doc(DOCS[doc_name])
+        for phrase in required_phrases:
+            assert phrase in content, f"{doc_name} missing {phrase}"
+
+
 def test_docs_do_not_contain_known_stale_claims() -> None:
     combined = "\n".join(read_doc(path) for path in DOCS.values()).lower()
     stale_phrases = (
@@ -127,6 +162,8 @@ def test_docs_do_not_contain_known_stale_claims() -> None:
         "ctrl+shift+c",
         "assistant display name",
         "gpt-5.5",
+        "static rate card at `src/aol_llm/pricing.json`",
+        "placeholder prices",
         '[providers.anthropic]\ndefault_model = "claude-opus-4-7"',
     )
     for phrase in stale_phrases:

@@ -150,6 +150,16 @@ Format files:
 uv run ruff format
 ```
 
+Refresh the vendored pricing snapshot from LiteLLM:
+
+```bash
+uv run python scripts/refresh_pricing.py
+```
+
+The app reads `src/aol_llm/data/model_prices.json` at runtime and never uses the
+network for cost estimates. Built-in models missing from LiteLLM are kept as
+explicit unpriced entries with reason `missing_from_litellm_snapshot`.
+
 Build package artifacts locally:
 
 ```bash
@@ -166,6 +176,9 @@ Generated `dist/` files are ignored by git.
   streaming contract; provider-native objects do not cross into UI or storage.
 - Local-first storage: SQLite for conversations/messages/settings and keyring
   for API keys.
+- Pricing: committed LiteLLM-derived snapshot data in
+  `src/aol_llm/data/model_prices.json`, refreshed by
+  `scripts/refresh_pricing.py`, keeps chat runtime offline and deterministic.
 - a-way messages live on conversations, not as messages.
 - Dataclasses and stdlib SQLite instead of pydantic or an ORM.
 - Tests are pulled forward and run through pytest, ruff, and strict mypy.

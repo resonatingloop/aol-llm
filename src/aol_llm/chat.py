@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from aol_llm.config import AppConfig, load_config
-from aol_llm.core.pricing import ModelPricing, estimate_cost_usd
+from aol_llm.core.pricing import ModelPricing, estimate_cost_usd, load_rate_card
 from aol_llm.core.types import (
     Buddy,
     Conversation,
@@ -63,7 +63,7 @@ class ChatService:
         self._config = app_config or load_config(config_path)
         self._provider_factory = provider_factory
         self._api_key_getter = api_key_getter
-        self._rate_card = rate_card or {}
+        self._rate_card = load_rate_card() if rate_card is None else rate_card
 
     def init(self) -> None:
         db.init_db(self._db_path)

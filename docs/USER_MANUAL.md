@@ -194,6 +194,11 @@ DB:     ~/.local/share/aol-llm/aol-llm.db
 The database stores conversations, messages, provider rows, settings, token
 usage, and estimated cost fields. API keys stay in keyring.
 
+Estimated costs use the committed pricing snapshot at
+`src/aol_llm/data/model_prices.json`. The app does not call the network for
+pricing while chatting; models missing from the snapshot may show no cost until
+the snapshot is refreshed.
+
 ## Troubleshooting
 
 ### Missing Anthropic API Key

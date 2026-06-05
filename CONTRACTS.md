@@ -21,7 +21,8 @@ should not drift casually during the build.
 - async everywhere; the provider adapters should not mix sync and async clients.
 - no ORM; use plain stdlib `sqlite3` with thin repository functions.
 - no retry logic at the provider layer; errors surface to UI, which offers retry.
-- cost tracking is baked in via a small static `pricing.json` rate card looked up at send time.
+- cost tracking is baked in via a vendored LiteLLM-derived pricing snapshot
+  looked up at send time.
 - ask before adding dependencies beyond the ones already listed in `pyproject.toml`.
 
 ---
@@ -343,22 +344,37 @@ current built-in keyring services:
 
 ## pricing
 
-static rate card at `src/aol_llm/pricing.json`:
+Static pricing data lives at `src/aol_llm/data/model_prices.json`. It is a
+vendored, deterministic subset generated from LiteLLM's upstream pricing file:
 
-TODO(agent): placeholder prices below must not ship as authoritative rates. before
-implementing `pricing.json`, verify current model pricing against provider docs
-or keep placeholder rates clearly marked in code and docs.
+```text
+https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json
+```
+
+`src/aol_llm/core/pricing.py` reads only the vendored snapshot at runtime. Chat
+sending must never hit the network to estimate cost.
+
+`scripts/refresh_pricing.py` refreshes the committed snapshot from LiteLLM.
+Run it deliberately, review the diff, and commit the changed
+`src/aol_llm/data/model_prices.json` file. Do not hand-edit generated rates.
+
+Every built-in provider/default model must appear in the snapshot. Models with
+usable LiteLLM rates are marked `priced: true` and store per-million-token
+`input_per_mtok` and `output_per_mtok` values. Models missing usable upstream
+rates are explicit unpriced entries, for example:
 
 ```json
 {
-  "claude-opus-4-8":  {"input_per_mtok": 5.0, "output_per_mtok": 25.0},
-  "claude-opus-4-7":  {"input_per_mtok": 5.0, "output_per_mtok": 25.0},
-  "claude-sonnet-4-6": {"input_per_mtok": 3.0,  "output_per_mtok": 15.0},
-  "gpt-5":             {"input_per_mtok": 5.0,  "output_per_mtok": 15.0}
+  "priced": false,
+  "reason": "missing_from_litellm_snapshot",
+  "upstream_model": null
 }
 ```
 
-cost computed at send time when usage is known. unknown models log a warning and set `cost_usd = NULL`. rates above are placeholders. before implementing live pricing defaults, verify current rates against provider pricing pages or leave placeholder rates clearly marked.
+Cost is computed at send time when usage is known. Explicitly unpriced or
+unknown models return `None` from cost estimation and persist `cost_usd = NULL`.
+Before release, manually verify current model ids and pricing against official
+provider pricing pages even when the LiteLLM snapshot has rates.
 
 Anthropic Claude Opus 4.8 uses the pinned model id `claude-opus-4-8`.
 Anthropic requests for Opus 4.8 enable adaptive thinking with

@@ -1,0 +1,46 @@
+{
+  "models": {
+    "claude-opus-4-7": {
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0,
+      "priced": true,
+      "upstream_model": "claude-opus-4-7"
+    },
+    "claude-opus-4-8": {
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0,
+      "priced": true,
+      "upstream_model": "claude-opus-4-8"
+    },
+    "claude-sonnet-4-5-20250929": {
+      "input_per_mtok": 3.0,
+      "output_per_mtok": 15.0,
+      "priced": true,
+      "upstream_model": "claude-sonnet-4-5-20250929"
+    },
+    "claude-sonnet-4-6": {
+      "input_per_mtok": 3.0,
+      "output_per_mtok": 15.0,
+      "priced": true,
+      "upstream_model": "claude-sonnet-4-6"
+    },
+    "gpt-5": {
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 10.0,
+      "priced": true,
+      "upstream_model": "gpt-5"
+    },
+    "grok-4.3": {
+      "input_per_mtok": 1.25,
+      "output_per_mtok": 2.5,
+      "priced": true,
+      "upstream_model": "xai/grok-4.3"
+    },
+    "mistral-small-2603": {
+      "priced": false,
+      "reason": "missing_from_litellm_snapshot",
+      "upstream_model": null
+    }
+  },
+  "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+}

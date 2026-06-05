@@ -12,6 +12,7 @@ CONTRACTS.md              engineering contracts and schema notes
 AGENTS.md                 agent workflow and repo policy
 README.md                 public setup and project overview
 docs/                     user manual, release checklist, decisions, schemas
+scripts/                  maintenance scripts
 src/aol_llm/              application package
 tests/                    pytest coverage for core, storage, providers, service
 ```
@@ -42,6 +43,8 @@ src/aol_llm/core/types.py
 
 src/aol_llm/core/pricing.py
   ModelPricing
+  load_pricing_snapshot
+  load_rate_card
   estimate_cost_usd
 
 src/aol_llm/core/requests.py
@@ -99,6 +102,29 @@ aol-llm.openai
 aol-llm.mistral
 aol-llm.xai
 ```
+
+## Pricing Data
+
+```text
+src/aol_llm/data/model_prices.json
+  committed LiteLLM-derived pricing snapshot
+
+scripts/refresh_pricing.py
+  refreshes the vendored pricing snapshot from LiteLLM upstream
+```
+
+Runtime chat code reads `src/aol_llm/data/model_prices.json` through
+`core/pricing.py`; it never calls the network for cost estimation. The refresh
+script downloads:
+
+```text
+https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json
+```
+
+Every built-in model from config and `DEFAULT_PROVIDER_MODELS` must have a
+snapshot entry. Priced entries include per-million-token rates. Missing upstream
+rates are explicit unpriced entries with reason
+`missing_from_litellm_snapshot`.
 
 ## Storage
 
@@ -306,6 +332,7 @@ tests/test_storage_migration.py    SQL migrations
 tests/test_storage_db.py           repository behavior
 tests/test_chat_service.py         orchestration and management behavior
 tests/test_export.py               Markdown/JSON export behavior
+tests/test_docs_contracts.py       docs/schema drift checks, pricing coverage
 ```
 
 Required validation:
@@ -319,8 +346,6 @@ uv run mypy --strict src tests
 
 ## Known Drift And Maintenance Pressure
 
-- Pricing docs mention `src/aol_llm/pricing.json`, but runtime pricing currently
-  lives in `core/pricing.py`, and newer built-in models have no rates.
 - Global `[ui].assistant_name` still parses and writes through config as legacy
   data, while runtime display now uses buddy/per-chat reply names.
 - Large modules above the repo's soft size target: `storage/db.py`, `chat.py`,

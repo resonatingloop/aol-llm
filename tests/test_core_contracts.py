@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 import pytest
 
 from aol_llm.core.errors import AuthError, ProviderError
-from aol_llm.core.pricing import ModelPricing, estimate_cost_usd
+from aol_llm.core.pricing import ModelPricing, estimate_cost_usd, load_rate_card
 from aol_llm.core.requests import normalize_chat_request
 from aol_llm.core.types import (
     Buddy,
@@ -153,3 +153,13 @@ def test_estimate_cost_usd_returns_none_for_unknown_models() -> None:
     usage = TokenUsage(input_tokens=1, output_tokens=1, model="unknown")
 
     assert estimate_cost_usd(usage, {}) is None
+
+
+def test_load_rate_card_reads_vendored_pricing_snapshot() -> None:
+    rate_card = load_rate_card()
+
+    assert rate_card["gpt-5"] == ModelPricing(
+        input_per_mtok=1.25,
+        output_per_mtok=10.0,
+    )
+    assert "mistral-small-2603" not in rate_card
