@@ -12,7 +12,7 @@ from aol_llm.core.errors import (
     RateLimitError,
     UnknownProviderError,
 )
-from aol_llm.core.types import Message, ProviderConfig, StreamChunk
+from aol_llm.core.types import Message, PromptCacheControl, ProviderConfig, StreamChunk
 from aol_llm.providers.anthropic import ANTHROPIC_MESSAGES_URL, AnthropicProvider
 from aol_llm.providers.base import Provider
 from aol_llm.providers.openai_compat import OpenAICompatibleProvider
@@ -148,6 +148,46 @@ async def test_anthropic_opus_4_8_uses_adaptive_thinking_without_temperature() -
     payload = json.loads(route.calls.last.request.content)
     assert payload["thinking"] == {"type": "adaptive"}
     assert "temperature" not in payload
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_anthropic_provider_adds_prompt_cache_control_when_enabled() -> None:
+    route = respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
+                {"type": "content_block_delta", "delta": {"text": "hi"}},
+                {
+                    "type": "message_delta",
+                    "usage": {
+                        "output_tokens": 5,
+                        "cache_creation_input_tokens": 11,
+                        "cache_read_input_tokens": 13,
+                    },
+                },
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = AnthropicProvider(config=anthropic_config(), api_key="test-key")
+
+    chunks = [
+        chunk
+        async for chunk in provider.stream(
+            messages=[make_message()],
+            system="You are concise.",
+            model=provider.config.default_model,
+            prompt_cache=PromptCacheControl(),
+        )
+    ]
+
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["cache_control"] == {"type": "ephemeral"}
+    assert chunks[-1].usage is not None
+    assert chunks[-1].usage.cache_creation_input_tokens == 11
+    assert chunks[-1].usage.cache_read_input_tokens == 13
 
 
 @respx.mock

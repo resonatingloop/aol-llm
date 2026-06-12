@@ -6,7 +6,13 @@ import pytest
 from aol_llm.chat import ChatService
 from aol_llm.config import AppConfig, ProviderSettings, UIConfig, default_config
 from aol_llm.core.pricing import ModelPricing
-from aol_llm.core.types import Message, ProviderConfig, StreamChunk, TokenUsage
+from aol_llm.core.types import (
+    Message,
+    PromptCacheControl,
+    ProviderConfig,
+    StreamChunk,
+    TokenUsage,
+)
 from aol_llm.providers.base import Provider
 from aol_llm.storage import db
 
@@ -25,8 +31,9 @@ class FakeProvider:
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
+        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
-        del max_output_tokens, temperature
+        del max_output_tokens, temperature, prompt_cache
         assert self.api_key == "secret"
         assert system == "Be concise."
         assert [message.role for message in messages] == ["user"]
@@ -319,6 +326,72 @@ def test_model_choices_include_default_xai_grok() -> None:
     ]
 
 
+def test_prompt_cache_setting_defaults_off_and_can_toggle(tmp_path: Path) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+    service.init()
+
+    assert service.prompt_cache_enabled() is False
+
+    service.set_prompt_cache_enabled(True)
+    assert service.prompt_cache_enabled() is True
+
+    service.set_prompt_cache_enabled(False)
+    assert service.prompt_cache_enabled() is False
+
+
+@pytest.mark.asyncio
+async def test_send_message_passes_prompt_cache_for_anthropic(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chat.db"
+    seen_cache: list[PromptCacheControl | None] = []
+
+    class CacheProvider:
+        config: ProviderConfig
+
+        def __init__(self, config: ProviderConfig, api_key: str | None) -> None:
+            self.config = config
+            self.api_key = api_key
+
+        async def stream(
+            self,
+            messages: list[Message],
+            system: str | None,
+            model: str,
+            max_output_tokens: int = 4096,
+            temperature: float = 1.0,
+            prompt_cache: PromptCacheControl | None = None,
+        ) -> AsyncIterator[StreamChunk]:
+            del messages, system, max_output_tokens, temperature
+            seen_cache.append(prompt_cache)
+            yield StreamChunk(text="ok", done=False)
+            yield StreamChunk(
+                text="",
+                done=True,
+                usage=TokenUsage(input_tokens=1, output_tokens=1, model=model),
+            )
+
+    def cache_provider_factory(
+        config: ProviderConfig,
+        api_key: str | None,
+    ) -> Provider:
+        return CacheProvider(config, api_key)
+
+    service = ChatService(
+        db_path=db_path,
+        app_config=app_config(),
+        provider_factory=cache_provider_factory,
+        api_key_getter=lambda provider_id: None,
+    )
+    service.init()
+    service.set_prompt_cache_enabled(True)
+    conversation = service.create_conversation()
+
+    _ = [event async for event in service.send_message(conversation.id, "hello")]
+
+    assert seen_cache == [PromptCacheControl()]
+
+
 def test_update_system_prompt_sets_and_clears_prompt(tmp_path: Path) -> None:
     service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
     service.init()
@@ -356,8 +429,9 @@ async def test_legacy_system_prompt_fallback_when_no_prompt_version(
             model: str,
             max_output_tokens: int = 4096,
             temperature: float = 1.0,
+            prompt_cache: PromptCacheControl | None = None,
         ) -> AsyncIterator[StreamChunk]:
-            del messages, max_output_tokens, temperature
+            del messages, max_output_tokens, temperature, prompt_cache
             seen_systems.append(system)
             yield StreamChunk(text="ok", done=False)
             yield StreamChunk(
@@ -421,8 +495,9 @@ async def test_retry_last_response_replaces_last_assistant(tmp_path: Path) -> No
             model: str,
             max_output_tokens: int = 4096,
             temperature: float = 1.0,
+            prompt_cache: PromptCacheControl | None = None,
         ) -> AsyncIterator[StreamChunk]:
-            del system, max_output_tokens, temperature
+            del system, max_output_tokens, temperature, prompt_cache
             calls.append([message.content for message in messages])
             yield StreamChunk(text="new", done=False)
             yield StreamChunk(

@@ -38,6 +38,7 @@ src/aol_llm/core/types.py
   Prompt
   PromptVersion
   ProviderConfig
+  PromptCacheControl
   TokenUsage
   StreamChunk
 
@@ -64,7 +65,10 @@ src/aol_llm/providers/base.py
 ```
 
 Provider adapters must yield normalized `StreamChunk` objects and raise
-`ProviderError` subclasses at the provider boundary.
+`ProviderError` subclasses at the provider boundary. `PromptCacheControl` is
+currently used for Anthropic automatic prompt caching. Cache creation/read token
+counts are normalized in `TokenUsage` for cost calculation; message storage
+still persists only input tokens, output tokens, and total cost.
 
 Stored message roles remain `user` and `assistant`. UI-facing reply names are
 presentation metadata resolved from the conversation override or buddy name.
@@ -185,6 +189,7 @@ send_message
   add user message
   stream provider response
   persist assistant message with usage, cost, model, prompt provenance
+  pass prompt-cache policy to Anthropic when enabled in app_settings
 
 retry_last_response
   remove trailing assistant message if present
@@ -225,6 +230,7 @@ src/aol_llm/providers/registry.py
 
 src/aol_llm/providers/anthropic.py
   Anthropic Messages API
+  top-level automatic prompt cache control
   Opus 4.8 adaptive thinking
   Opus 4.7/4.8 sampling-parameter omission
 
@@ -262,6 +268,10 @@ src/aol_llm/ui/app.py
   action handlers
   current buddy/conversation state
   transcript reload and streaming coordination
+  slash command dispatch
+
+src/aol_llm/ui/commands.py
+  composer slash command parsing
 
 src/aol_llm/ui/screens.py
   MainScreen
@@ -333,6 +343,7 @@ tests/test_storage_migration.py    SQL migrations
 tests/test_storage_db.py           repository behavior
 tests/test_chat_service.py         orchestration and management behavior
 tests/test_export.py               Markdown/JSON export behavior
+tests/test_ui_commands.py          composer slash command parsing
 tests/test_docs_contracts.py       docs/schema drift checks, pricing coverage
 ```
 

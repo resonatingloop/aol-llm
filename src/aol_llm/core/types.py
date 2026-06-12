@@ -7,6 +7,7 @@ from typing import Literal
 Role = Literal["user", "assistant"]
 ProviderKind = Literal["anthropic", "openai_compatible"]
 PromptStatus = Literal["draft", "canonical", "archived"]
+PromptCacheType = Literal["ephemeral"]
 
 
 @dataclass(frozen=True)
@@ -105,10 +106,17 @@ class ProviderConfig:
 
 
 @dataclass(frozen=True)
+class PromptCacheControl:
+    type: PromptCacheType = "ephemeral"
+
+
+@dataclass(frozen=True)
 class TokenUsage:
     input_tokens: int
     output_tokens: int
     model: str
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
 
 
 @dataclass(frozen=True)

@@ -4,7 +4,13 @@ from datetime import UTC, datetime
 import pytest
 
 from aol_llm.core.errors import AuthError, NetworkError, RateLimitError
-from aol_llm.core.types import Message, ProviderConfig, StreamChunk, TokenUsage
+from aol_llm.core.types import (
+    Message,
+    PromptCacheControl,
+    ProviderConfig,
+    StreamChunk,
+    TokenUsage,
+)
 from aol_llm.providers.base import Provider
 
 
@@ -26,8 +32,9 @@ class FakeProvider:
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
+        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
-        del messages, system, max_output_tokens, temperature
+        del messages, system, max_output_tokens, temperature, prompt_cache
         yield StreamChunk(text="hello", done=False)
         yield StreamChunk(
             text="",
@@ -48,8 +55,9 @@ class ErrorProvider:
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
+        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
-        del messages, system, model, max_output_tokens, temperature
+        del messages, system, model, max_output_tokens, temperature, prompt_cache
         raise self._error
         yield StreamChunk(text="", done=True)
 

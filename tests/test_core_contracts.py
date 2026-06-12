@@ -11,6 +11,7 @@ from aol_llm.core.types import (
     Conversation,
     Message,
     Prompt,
+    PromptCacheControl,
     PromptVersion,
     ProviderConfig,
     StreamChunk,
@@ -113,8 +114,10 @@ def test_provider_config_and_stream_chunk_shapes() -> None:
     )
     usage = TokenUsage(input_tokens=10, output_tokens=20, model=config.default_model)
     chunk = StreamChunk(text="", done=True, usage=usage)
+    cache_control = PromptCacheControl()
 
     assert config.kind == "anthropic"
+    assert cache_control.type == "ephemeral"
     assert chunk.done is True
     assert chunk.usage == usage
 
@@ -147,6 +150,19 @@ def test_estimate_cost_usd_uses_per_million_token_rates() -> None:
     rate_card = {"model-a": ModelPricing(input_per_mtok=3.0, output_per_mtok=15.0)}
 
     assert estimate_cost_usd(usage, rate_card) == 10.5
+
+
+def test_estimate_cost_usd_applies_prompt_cache_multipliers() -> None:
+    usage = TokenUsage(
+        input_tokens=1_000_000,
+        output_tokens=500_000,
+        model="model-a",
+        cache_creation_input_tokens=1_000_000,
+        cache_read_input_tokens=1_000_000,
+    )
+    rate_card = {"model-a": ModelPricing(input_per_mtok=4.0, output_per_mtok=20.0)}
+
+    assert estimate_cost_usd(usage, rate_card) == 19.4
 
 
 def test_estimate_cost_usd_returns_none_for_unknown_models() -> None:

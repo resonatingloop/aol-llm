@@ -38,6 +38,7 @@ from typing import AsyncIterator, Literal, Protocol
 Role = Literal["user", "assistant"]
 ProviderKind = Literal["anthropic", "openai_compatible"]
 PromptStatus = Literal["draft", "canonical", "archived"]
+PromptCacheType = Literal["ephemeral"]
 
 @dataclass(frozen=True)
 class Message:
@@ -129,10 +130,16 @@ class ProviderConfig:
     available_models: list[str]
 
 @dataclass(frozen=True)
+class PromptCacheControl:
+    type: PromptCacheType = "ephemeral"
+
+@dataclass(frozen=True)
 class TokenUsage:
     input_tokens: int
     output_tokens: int
     model: str
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
 
 @dataclass(frozen=True)
 class StreamChunk:
@@ -155,6 +162,7 @@ class Provider(Protocol):
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
+        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
         ...
 ```
@@ -166,6 +174,8 @@ contract guarantees a Provider must satisfy:
 - on error, raises a subclass of `ProviderError` (no silent failure, no None returns)
 - never mutates the input `messages` list
 - never returns provider-native types (no `anthropic.MessageStream` leaking upward)
+- honors `PromptCacheControl` only when the provider supports it. unsupported
+  providers ignore it rather than changing request semantics.
 
 ## error taxonomy
 
@@ -309,6 +319,13 @@ Provider adapters still receive the effective system prompt separately from
 ordered user/assistant messages and translate it into each provider's required
 API format. Message roles remain limited to `user` and `assistant`.
 
+Claude prompt caching is controlled by `app_settings` key
+`anthropic_prompt_cache_enabled`. The Textual slash command `/cache on|off|status`
+updates or reads that setting. When enabled for an Anthropic conversation,
+`ChatService` passes `PromptCacheControl(type="ephemeral")` to the provider. The
+Anthropic adapter sends top-level `cache_control: {"type": "ephemeral"}` for
+automatic prompt caching. OpenAI-compatible providers ignore the cache policy.
+
 ## config & secrets
 
 config at `platformdirs.user_config_dir("aol-llm") / "config.toml"`. schema:
@@ -377,6 +394,13 @@ unknown models return `None` from cost estimation and persist `cost_usd = NULL`.
 Before release, manually verify current model ids and pricing against official
 provider pricing pages even when the LiteLLM snapshot has rates.
 
+Anthropic cache usage fields are normalized into `TokenUsage` as
+`cache_creation_input_tokens` and `cache_read_input_tokens`. The current storage
+schema persists only the existing message-level `input_tokens`, `output_tokens`,
+and `cost_usd`; cache token breakdowns are runtime-only cost inputs. Five-minute
+cache writes use 1.25x the base input-token rate and cache reads use 0.1x the
+base input-token rate.
+
 Anthropic Claude Opus 4.8 uses the pinned model id `claude-opus-4-8`.
 Anthropic requests for Opus 4.8 enable adaptive thinking with
 `thinking: {"type": "adaptive"}`. Opus 4.8 and Opus 4.7 requests omit
@@ -407,6 +431,14 @@ keybindings (use textual's BINDINGS):
 - `ctrl+c` Quit
 
 streaming UI: the ChatTranscript subscribes to the provider's `StreamChunk` async iterator and appends `chunk.text` as it arrives. on `done=True`, persists the message via `storage.add_message` with the usage fields.
+
+composer slash commands are local UI commands and are not persisted as messages.
+current commands:
+
+- `/cache on`
+- `/cache off`
+- `/cache status`
+- `/help`
 
 ## acceptance criteria per step
 

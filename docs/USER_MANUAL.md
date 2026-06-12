@@ -130,6 +130,21 @@ continues editing in the composer.
 The settings screen can update the reply name used by the current chat.
 Provider config and API keys are still edited manually for now.
 
+## Slash Commands
+
+Slash commands run from the composer with `f5`. They are local app commands and
+are not saved as chat messages.
+
+| Command | Action |
+| --- | --- |
+| `/cache on` | Enable Claude prompt caching |
+| `/cache off` | Disable Claude prompt caching |
+| `/cache status` | Show whether Claude prompt caching is enabled |
+| `/help` | Show the current command summary |
+
+Prompt caching only affects Anthropic/Claude requests. When enabled, the app
+uses Claude's automatic ephemeral prompt caching for future sends.
+
 ## Keybindings
 
 | Key | Action |

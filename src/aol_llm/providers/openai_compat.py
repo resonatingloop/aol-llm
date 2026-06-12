@@ -6,7 +6,13 @@ from urllib.parse import urlparse
 import httpx
 
 from aol_llm.core.errors import UnknownProviderError
-from aol_llm.core.types import Message, ProviderConfig, StreamChunk, TokenUsage
+from aol_llm.core.types import (
+    Message,
+    PromptCacheControl,
+    ProviderConfig,
+    StreamChunk,
+    TokenUsage,
+)
 from aol_llm.providers._http import (
     iter_sse_json,
     raise_for_provider_status,
@@ -26,7 +32,9 @@ class OpenAICompatibleProvider:
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
+        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
+        del prompt_cache
         if self.config.base_url is None:
             raise UnknownProviderError("OpenAI-compatible provider requires a base_url")
 

@@ -9,6 +9,7 @@ from aol_llm.chat import ChatEvent, ChatService, ModelChoice
 from aol_llm.core.errors import ProviderError
 from aol_llm.core.types import Buddy, Conversation
 from aol_llm.export import export_markdown
+from aol_llm.ui.commands import SlashCommand, parse_slash_command
 from aol_llm.ui.modals import (
     ConfirmModal,
     ExportFormatModal,
@@ -61,6 +62,11 @@ class THRESHOLD36(App[None]):
         composer = self.screen.query_one(Composer)
         content = composer.text().strip()
         if not content:
+            return
+        command = parse_slash_command(content)
+        if command is not None:
+            composer.clear()
+            self._handle_slash_command(command)
             return
 
         self._sending = True
@@ -247,6 +253,36 @@ class THRESHOLD36(App[None]):
         )
         self._load_current_transcript()
         self.notify("Reply name updated")
+
+    def _handle_slash_command(self, command: SlashCommand) -> None:
+        if command.name == "cache":
+            self._handle_cache_command(command.args)
+            return
+        if command.name == "help":
+            self.notify("Commands: /cache on, /cache off, /cache status")
+            return
+        label = "/" if not command.name else f"/{command.name}"
+        self.notify(f"Unknown command: {label}", severity="warning")
+
+    def _handle_cache_command(self, args: tuple[str, ...]) -> None:
+        if len(args) > 1:
+            self.notify("Usage: /cache on|off|status", severity="warning")
+            return
+
+        subcommand = args[0].lower() if args else "status"
+        if subcommand == "on":
+            self._chat_service.set_prompt_cache_enabled(True)
+            self.notify("Claude prompt cache on")
+            return
+        if subcommand == "off":
+            self._chat_service.set_prompt_cache_enabled(False)
+            self.notify("Claude prompt cache off")
+            return
+        if subcommand == "status":
+            state = "on" if self._chat_service.prompt_cache_enabled() else "off"
+            self.notify(f"Claude prompt cache is {state}")
+            return
+        self.notify("Usage: /cache on|off|status", severity="warning")
 
     def _export_current_chat(self, format: str | None) -> None:
         if self._current_conversation is None or format is None:

@@ -10,6 +10,7 @@ from aol_llm.core.types import (
     Buddy,
     Conversation,
     Message,
+    PromptCacheControl,
     ProviderConfig,
     ProviderKind,
 )
@@ -21,6 +22,7 @@ from aol_llm.storage import db
 
 ProviderFactory = Callable[[ProviderConfig, str | None], Provider]
 ApiKeyGetter = Callable[[str], str | None]
+PROMPT_CACHE_SETTING = "anthropic_prompt_cache_enabled"
 DEFAULT_PROVIDER_MODELS = {
     "anthropic": [
         "claude-fable-5",
@@ -221,6 +223,12 @@ class ChatService:
             reply_name=self._resolve_reply_name(conversation),
         )
 
+    def set_prompt_cache_enabled(self, enabled: bool) -> None:
+        db.set_app_setting(PROMPT_CACHE_SETTING, "1" if enabled else "0", self._db_path)
+
+    def prompt_cache_enabled(self) -> bool:
+        return db.get_app_setting(PROMPT_CACHE_SETTING, self._db_path) == "1"
+
     async def send_message(
         self,
         conversation_id: str,
@@ -273,6 +281,7 @@ class ChatService:
             messages=messages,
             system=system,
             model=conversation.model,
+            prompt_cache=self._prompt_cache_control(conversation),
         ):
             if not chunk.done:
                 assistant_text += chunk.text
@@ -390,6 +399,16 @@ class ChatService:
                 settings.default_model,
             ),
         )
+
+    def _prompt_cache_control(
+        self,
+        conversation: Conversation,
+    ) -> PromptCacheControl | None:
+        if conversation.provider_id != "anthropic":
+            return None
+        if not self.prompt_cache_enabled():
+            return None
+        return PromptCacheControl()
 
     def _default_export_dir(self) -> Path:
         if self._db_path is not None:

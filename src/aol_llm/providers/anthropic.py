@@ -5,7 +5,13 @@ from collections.abc import AsyncIterator
 import httpx
 
 from aol_llm.core.errors import AuthError, ContentFilterError, UnknownProviderError
-from aol_llm.core.types import Message, ProviderConfig, StreamChunk, TokenUsage
+from aol_llm.core.types import (
+    Message,
+    PromptCacheControl,
+    ProviderConfig,
+    StreamChunk,
+    TokenUsage,
+)
 from aol_llm.providers._http import (
     iter_sse_json,
     raise_for_provider_status,
@@ -28,6 +34,7 @@ class AnthropicProvider:
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
+        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
         if not self._api_key:
             raise AuthError("missing Anthropic API key")
@@ -45,6 +52,8 @@ class AnthropicProvider:
             payload["thinking"] = {"type": "adaptive"}
         if not _rejects_sampling_parameters(model):
             payload["temperature"] = temperature
+        if prompt_cache is not None:
+            payload["cache_control"] = {"type": prompt_cache.type}
         if system is not None:
             payload["system"] = system
 
@@ -55,6 +64,8 @@ class AnthropicProvider:
         }
         input_tokens: int | None = None
         output_tokens: int | None = None
+        cache_creation_input_tokens = 0
+        cache_read_input_tokens = 0
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -86,6 +97,13 @@ class AnthropicProvider:
                                 )
                             usage = event.get("usage", {})
                             output_tokens = _optional_int(usage.get("output_tokens"))
+                            cache_creation_input_tokens = (
+                                _optional_int(usage.get("cache_creation_input_tokens"))
+                                or 0
+                            )
+                            cache_read_input_tokens = (
+                                _optional_int(usage.get("cache_read_input_tokens")) or 0
+                            )
                         elif event_type == "message_stop":
                             if input_tokens is None or output_tokens is None:
                                 raise UnknownProviderError(
@@ -98,6 +116,8 @@ class AnthropicProvider:
                                     input_tokens=input_tokens,
                                     output_tokens=output_tokens,
                                     model=model,
+                                    cache_creation_input_tokens=cache_creation_input_tokens,
+                                    cache_read_input_tokens=cache_read_input_tokens,
                                 ),
                             )
                             return
