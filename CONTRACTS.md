@@ -39,6 +39,7 @@ Role = Literal["user", "assistant"]
 ProviderKind = Literal["anthropic", "openai_compatible"]
 PromptStatus = Literal["draft", "canonical", "archived"]
 PromptCacheType = Literal["ephemeral"]
+PromptCacheTTL = Literal["5m", "1h"]
 
 @dataclass(frozen=True)
 class Message:
@@ -132,13 +133,15 @@ class ProviderConfig:
 @dataclass(frozen=True)
 class PromptCacheControl:
     type: PromptCacheType = "ephemeral"
+    ttl: PromptCacheTTL = "5m"
 
 @dataclass(frozen=True)
 class TokenUsage:
     input_tokens: int
     output_tokens: int
     model: str
-    cache_creation_input_tokens: int = 0
+    cache_creation_5m_input_tokens: int = 0
+    cache_creation_1h_input_tokens: int = 0
     cache_read_input_tokens: int = 0
 
 @dataclass(frozen=True)
@@ -320,11 +323,17 @@ ordered user/assistant messages and translate it into each provider's required
 API format. Message roles remain limited to `user` and `assistant`.
 
 Claude prompt caching is controlled by `app_settings` key
-`anthropic_prompt_cache_enabled`. The Textual slash command `/cache on|off|status`
-updates or reads that setting. When enabled for an Anthropic conversation,
-`ChatService` passes `PromptCacheControl(type="ephemeral")` to the provider. The
-Anthropic adapter sends top-level `cache_control: {"type": "ephemeral"}` for
-automatic prompt caching. OpenAI-compatible providers ignore the cache policy.
+`anthropic_prompt_cache_enabled`. Stored values are `off`, `5m`, or `1h`; legacy
+values `0` and `1` read as `off` and `1h`. The Textual slash command
+`/cache on|1h|5m|off|status` updates or reads that setting. `/cache on` is an
+alias for `/cache 1h`. When enabled for an Anthropic conversation, `ChatService`
+passes `PromptCacheControl(type="ephemeral", ttl=<mode>)` to the provider. The
+Anthropic adapter sends top-level automatic cache control:
+
+- `5m`: `cache_control: {"type": "ephemeral"}`
+- `1h`: `cache_control: {"type": "ephemeral", "ttl": "1h"}`
+
+OpenAI-compatible providers ignore the cache policy.
 
 ## config & secrets
 
@@ -395,11 +404,12 @@ Before release, manually verify current model ids and pricing against official
 provider pricing pages even when the LiteLLM snapshot has rates.
 
 Anthropic cache usage fields are normalized into `TokenUsage` as
-`cache_creation_input_tokens` and `cache_read_input_tokens`. The current storage
-schema persists only the existing message-level `input_tokens`, `output_tokens`,
-and `cost_usd`; cache token breakdowns are runtime-only cost inputs. Five-minute
-cache writes use 1.25x the base input-token rate and cache reads use 0.1x the
-base input-token rate.
+`cache_creation_5m_input_tokens`, `cache_creation_1h_input_tokens`, and
+`cache_read_input_tokens`. The current storage schema persists only the existing
+message-level `input_tokens`, `output_tokens`, and `cost_usd`; cache token
+breakdowns are runtime-only cost inputs. Five-minute cache writes use 1.25x the
+base input-token rate, one-hour cache writes use 2x the base input-token rate,
+and cache reads use 0.1x the base input-token rate.
 
 Anthropic Claude Opus 4.8 uses the pinned model id `claude-opus-4-8`.
 Anthropic requests for Opus 4.8 enable adaptive thinking with
@@ -413,21 +423,17 @@ screens:
 - `MainScreen`: sidebar with Buddy List and selected-buddy Chats, central `ChatTranscript`, bottom `Composer`, top/bottom `StatusBar` (current model, token+cost running totals)
 - `SettingsScreen`: current-chat reply-name override
 - `ModelPickerModal`: switch model mid-chat
+- `BuddyPickerModal`: switch active buddy from slash command
 - `ConfirmModal`: generic yes/no for destructive ops
 
 keybindings (use textual's BINDINGS):
 - `f1` Settings
-- `f2` Model
-- `f3` a-way
-- `f4` Rename buddy
-- `f5` Send (enter = newline in composer)
-- `f6` New
+- `f2` Rename buddy
+- `f3` Send message (and submit slash commands; enter = newline in composer)
+- `f4` New chat
+- `f5` Archive chat (with ConfirmModal)
+- `f6` Delete chat (with ConfirmModal)
 - `f7` Retry
-- `f8` Rename chat
-- `f9` Export
-- `ctrl+y` Copy
-- `ctrl+x` Archive (with ConfirmModal)
-- `ctrl+d` Delete (with ConfirmModal)
 - `ctrl+c` Quit
 
 streaming UI: the ChatTranscript subscribes to the provider's `StreamChunk` async iterator and appends `chunk.text` as it arrives. on `done=True`, persists the message via `storage.add_message` with the usage fields.
@@ -436,8 +442,17 @@ composer slash commands are local UI commands and are not persisted as messages.
 current commands:
 
 - `/cache on`
+- `/cache 1h`
+- `/cache 5m`
 - `/cache off`
 - `/cache status`
+- `/copy`
+- `/export`
+- `/away`
+- `/buddy`
+- `/chatname`
+- `/quit`
+- `/settings`
 - `/help`
 
 ## acceptance criteria per step
@@ -452,7 +467,7 @@ step 4 (storage) done when: migrations apply cleanly to a fresh db; all storage 
 
 step 6 (textual shell) done when: app launches, MainScreen renders with a stub Buddy List and Chats pane, composer accepts input, all bindings registered (can be no-ops). no provider integration yet.
 
-step 7 (wire chat) done when: typing a message and pressing f5 sends to the configured provider, streams response into transcript, persists both user and assistant message with token counts and cost, status bar updates running totals.
+step 7 (wire chat) done when: typing a message and pressing f3 sends to the configured provider, streams response into transcript, persists both user and assistant message with token counts and cost, status bar updates running totals.
 
 ---
 

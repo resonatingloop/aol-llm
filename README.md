@@ -108,17 +108,12 @@ See [docs/USER_MANUAL.md](./docs/USER_MANUAL.md) for the current walkthrough.
 | Key | Action |
 | --- | --- |
 | `f1` | Settings |
-| `f2` | Model |
-| `f3` | a-way |
-| `f4` | Rename buddy |
-| `f5` | Send |
-| `f6` | New |
+| `f2` | Rename buddy |
+| `f3` | Send message |
+| `f4` | New chat |
+| `f5` | Archive chat |
+| `f6` | Delete chat |
 | `f7` | Retry |
-| `f8` | Rename chat |
-| `f9` | Export |
-| `ctrl+y` | Copy |
-| `ctrl+x` | Archive |
-| `ctrl+d` | Delete |
 | `ctrl+c` | Quit |
 
 ## Development

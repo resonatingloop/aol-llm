@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from aol_llm.config import AppConfig, load_config
 from aol_llm.core.pricing import ModelPricing, estimate_cost_usd, load_rate_card
@@ -11,6 +12,7 @@ from aol_llm.core.types import (
     Conversation,
     Message,
     PromptCacheControl,
+    PromptCacheTTL,
     ProviderConfig,
     ProviderKind,
 )
@@ -23,6 +25,8 @@ from aol_llm.storage import db
 ProviderFactory = Callable[[ProviderConfig, str | None], Provider]
 ApiKeyGetter = Callable[[str], str | None]
 PROMPT_CACHE_SETTING = "anthropic_prompt_cache_enabled"
+PromptCacheMode = Literal["off", "5m", "1h"]
+PROMPT_CACHE_MODES: set[PromptCacheMode] = {"off", "5m", "1h"}
 DEFAULT_PROVIDER_MODELS = {
     "anthropic": [
         "claude-fable-5",
@@ -44,6 +48,9 @@ class ChatEvent:
     input_tokens: int | None = None
     output_tokens: int | None = None
     cost_usd: float | None = None
+    cache_creation_5m_input_tokens: int = 0
+    cache_creation_1h_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
 
 
 @dataclass(frozen=True)
@@ -224,10 +231,23 @@ class ChatService:
         )
 
     def set_prompt_cache_enabled(self, enabled: bool) -> None:
-        db.set_app_setting(PROMPT_CACHE_SETTING, "1" if enabled else "0", self._db_path)
+        self.set_prompt_cache_mode("1h" if enabled else "off")
 
     def prompt_cache_enabled(self) -> bool:
-        return db.get_app_setting(PROMPT_CACHE_SETTING, self._db_path) == "1"
+        return self.prompt_cache_mode() != "off"
+
+    def set_prompt_cache_mode(self, mode: PromptCacheMode) -> None:
+        db.set_app_setting(PROMPT_CACHE_SETTING, mode, self._db_path)
+
+    def prompt_cache_mode(self) -> PromptCacheMode:
+        value = db.get_app_setting(PROMPT_CACHE_SETTING, self._db_path)
+        if value == "1":
+            return "1h"
+        if value == "0" or value is None:
+            return "off"
+        if value in PROMPT_CACHE_MODES:
+            return value
+        return "off"
 
     async def send_message(
         self,
@@ -314,6 +334,9 @@ class ChatService:
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
                 cost_usd=cost_usd,
+                cache_creation_5m_input_tokens=usage.cache_creation_5m_input_tokens,
+                cache_creation_1h_input_tokens=usage.cache_creation_1h_input_tokens,
+                cache_read_input_tokens=usage.cache_read_input_tokens,
             )
             return
 
@@ -406,9 +429,11 @@ class ChatService:
     ) -> PromptCacheControl | None:
         if conversation.provider_id != "anthropic":
             return None
-        if not self.prompt_cache_enabled():
+        mode = self.prompt_cache_mode()
+        if mode == "off":
             return None
-        return PromptCacheControl()
+        ttl: PromptCacheTTL = mode
+        return PromptCacheControl(ttl=ttl)
 
     def _default_export_dir(self) -> Path:
         if self._db_path is not None:

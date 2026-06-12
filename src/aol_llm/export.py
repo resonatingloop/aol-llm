@@ -59,6 +59,30 @@ def export_json(
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
+def export_last_pair_markdown(
+    messages: list[Message],
+    reply_name: str | None = None,
+) -> str | None:
+    pair = _last_user_assistant_pair(messages)
+    if pair is None:
+        return None
+
+    user_message, assistant_message = pair
+    assistant_label = reply_name or assistant_message.role
+    return "\n".join(
+        [
+            "### User",
+            "",
+            user_message.content,
+            "",
+            f"### {assistant_label.title()}",
+            "",
+            assistant_message.content,
+            "",
+        ]
+    )
+
+
 def write_export(
     conversation: Conversation,
     messages: list[Message],
@@ -94,6 +118,17 @@ def _usage_line(message: Message) -> str | None:
         f"_Usage: input {message.input_tokens or 0}, "
         f"output {message.output_tokens or 0}{cost}_"
     )
+
+
+def _last_user_assistant_pair(
+    messages: list[Message],
+) -> tuple[Message, Message] | None:
+    for index in range(len(messages) - 1, 0, -1):
+        assistant_message = messages[index]
+        user_message = messages[index - 1]
+        if assistant_message.role == "assistant" and user_message.role == "user":
+            return user_message, assistant_message
+    return None
 
 
 def _extension(format: str) -> str:

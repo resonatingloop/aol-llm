@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 import json
 
 from aol_llm.core.types import Conversation, Message
-from aol_llm.export import export_json, export_markdown
+from aol_llm.export import export_json, export_last_pair_markdown, export_markdown
 
 
 def conversation() -> Conversation:
@@ -61,3 +61,31 @@ def test_export_json_serializes_conversation_and_messages() -> None:
     assert payload["reply_name"] == "Threshold"
     assert payload["messages"][1]["role"] == "assistant"
     assert payload["messages"][1]["cost_usd"] == 0.00001
+
+
+def test_export_last_pair_markdown_copies_final_prompt_and_response() -> None:
+    now = datetime(2026, 5, 25, tzinfo=UTC)
+    source = messages() + [
+        Message(
+            id="msg3",
+            conversation_id="chat1",
+            role="user",
+            content="next",
+            created_at=now,
+        ),
+        Message(
+            id="msg4",
+            conversation_id="chat1",
+            role="assistant",
+            content="reply",
+            created_at=now,
+        ),
+    ]
+
+    assert export_last_pair_markdown(source, reply_name="Threshold") == (
+        "### User\n\nnext\n\n### Threshold\n\nreply\n"
+    )
+
+
+def test_export_last_pair_markdown_requires_complete_pair() -> None:
+    assert export_last_pair_markdown(messages()[:1]) is None

@@ -152,7 +152,7 @@ async def test_anthropic_opus_4_8_uses_adaptive_thinking_without_temperature() -
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_anthropic_provider_adds_prompt_cache_control_when_enabled() -> None:
+async def test_anthropic_provider_adds_5m_prompt_cache_control_when_enabled() -> None:
     route = respx.post(ANTHROPIC_MESSAGES_URL).mock(
         return_value=httpx.Response(
             200,
@@ -186,7 +186,53 @@ async def test_anthropic_provider_adds_prompt_cache_control_when_enabled() -> No
     payload = json.loads(route.calls.last.request.content)
     assert payload["cache_control"] == {"type": "ephemeral"}
     assert chunks[-1].usage is not None
-    assert chunks[-1].usage.cache_creation_input_tokens == 11
+    assert chunks[-1].usage.cache_creation_5m_input_tokens == 11
+    assert chunks[-1].usage.cache_creation_1h_input_tokens == 0
+    assert chunks[-1].usage.cache_read_input_tokens == 13
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_anthropic_provider_adds_1h_prompt_cache_control_and_usage() -> None:
+    route = respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
+                {"type": "content_block_delta", "delta": {"text": "hi"}},
+                {
+                    "type": "message_delta",
+                    "usage": {
+                        "output_tokens": 5,
+                        "cache_creation_input_tokens": 24,
+                        "cache_read_input_tokens": 13,
+                        "cache_creation": {
+                            "ephemeral_5m_input_tokens": 11,
+                            "ephemeral_1h_input_tokens": 13,
+                        },
+                    },
+                },
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = AnthropicProvider(config=anthropic_config(), api_key="test-key")
+
+    chunks = [
+        chunk
+        async for chunk in provider.stream(
+            messages=[make_message()],
+            system="You are concise.",
+            model=provider.config.default_model,
+            prompt_cache=PromptCacheControl(ttl="1h"),
+        )
+    ]
+
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+    assert chunks[-1].usage is not None
+    assert chunks[-1].usage.cache_creation_5m_input_tokens == 11
+    assert chunks[-1].usage.cache_creation_1h_input_tokens == 13
     assert chunks[-1].usage.cache_read_input_tokens == 13
 
 

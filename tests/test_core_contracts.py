@@ -157,12 +157,13 @@ def test_estimate_cost_usd_applies_prompt_cache_multipliers() -> None:
         input_tokens=1_000_000,
         output_tokens=500_000,
         model="model-a",
-        cache_creation_input_tokens=1_000_000,
+        cache_creation_5m_input_tokens=1_000_000,
+        cache_creation_1h_input_tokens=1_000_000,
         cache_read_input_tokens=1_000_000,
     )
     rate_card = {"model-a": ModelPricing(input_per_mtok=4.0, output_per_mtok=20.0)}
 
-    assert estimate_cost_usd(usage, rate_card) == 19.4
+    assert estimate_cost_usd(usage, rate_card) == 27.4
 
 
 def test_estimate_cost_usd_returns_none_for_unknown_models() -> None:

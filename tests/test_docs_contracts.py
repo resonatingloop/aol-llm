@@ -166,6 +166,11 @@ def test_docs_do_not_contain_known_stale_claims() -> None:
         "static rate card at `src/aol_llm/pricing.json`",
         "placeholder prices",
         '[providers.anthropic]\ndefault_model = "claude-opus-4-7"',
+        "| `f8` |",
+        "| `f9` |",
+        "`ctrl+y`",
+        "`ctrl+x`",
+        "`ctrl+d`",
     )
     for phrase in stale_phrases:
         assert phrase not in combined

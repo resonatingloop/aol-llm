@@ -6,6 +6,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, ListItem, ListView, TextArea
 
 from aol_llm.chat import ModelChoice
+from aol_llm.core.types import Buddy
 
 
 class ModelPickerModal(ModalScreen[ModelChoice | None]):
@@ -49,6 +50,53 @@ class ModelPickerModal(ModalScreen[ModelChoice | None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-model":
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class BuddyPickerModal(ModalScreen[Buddy | None]):
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    DEFAULT_CSS = """
+    BuddyPickerModal {
+        align: center middle;
+    }
+
+    #buddy-picker {
+        width: 52;
+        height: auto;
+        border: solid $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    """
+
+    def __init__(self, buddies: list[Buddy]) -> None:
+        super().__init__()
+        self._buddies = buddies
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="buddy-picker"):
+            yield Label("Buddy")
+            yield ListView(
+                *[
+                    ListItem(Label(f"{buddy.screen_name} / {buddy.model}"))
+                    for buddy in self._buddies
+                ],
+                id="buddy-options",
+            )
+            with Horizontal(classes="modal-actions"):
+                yield Button("Cancel", id="cancel-buddy")
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if event.list_view.id != "buddy-options":
+            return
+        self.dismiss(self._buddies[event.index])
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel-buddy":
             self.dismiss(None)
 
     def action_cancel(self) -> None:

@@ -7,6 +7,22 @@ from textual.widgets import Label, ListItem, ListView, Static, TextArea
 from aol_llm.core.types import Buddy, Conversation
 
 
+def format_usage_status(
+    input_tokens: int,
+    output_tokens: int,
+    cost_usd: float,
+    cache_read_input_tokens: int = 0,
+    cache_creation_5m_input_tokens: int = 0,
+    cache_creation_1h_input_tokens: int = 0,
+) -> str:
+    return (
+        f"input {input_tokens} / output {output_tokens} / "
+        f"cache r {cache_read_input_tokens} "
+        f"w5 {cache_creation_5m_input_tokens} "
+        f"w1h {cache_creation_1h_input_tokens} / ${cost_usd:.4f}"
+    )
+
+
 class BuddyList(Static):
     def compose(self) -> ComposeResult:
         yield Label("Buddy List", classes="panel-title")
@@ -72,7 +88,10 @@ class StatusBar(Static):
     def compose(self) -> ComposeResult:
         with Horizontal(id="status-row"):
             yield Static("anthropic / claude-sonnet-test", id="status-model")
-            yield Static("input 0 / output 0 / $0.0000", id="status-usage")
+            yield Static(
+                format_usage_status(0, 0, 0.0),
+                id="status-usage",
+            )
 
     def set_model(self, provider_id: str, model: str) -> None:
         self.query_one("#status-model", Static).update(f"{provider_id} / {model}")
@@ -82,26 +101,63 @@ class StatusBar(Static):
         input_tokens: int,
         output_tokens: int,
         cost_usd: float,
+        cache_read_input_tokens: int = 0,
+        cache_creation_5m_input_tokens: int = 0,
+        cache_creation_1h_input_tokens: int = 0,
     ) -> None:
         self._input_tokens = input_tokens
         self._output_tokens = output_tokens
         self._cost_usd = cost_usd
-        self.query_one("#status-usage", Static).update(
-            f"input {input_tokens} / output {output_tokens} / ${cost_usd:.4f}"
-        )
+        self._cache_read_input_tokens = cache_read_input_tokens
+        self._cache_creation_5m_input_tokens = cache_creation_5m_input_tokens
+        self._cache_creation_1h_input_tokens = cache_creation_1h_input_tokens
+        self._refresh_usage()
 
     def add_usage(
         self,
         input_tokens: int | None,
         output_tokens: int | None,
         cost_usd: float | None,
+        cache_read_input_tokens: int = 0,
+        cache_creation_5m_input_tokens: int = 0,
+        cache_creation_1h_input_tokens: int = 0,
     ) -> None:
         current_input = getattr(self, "_input_tokens", 0) + (input_tokens or 0)
         current_output = getattr(self, "_output_tokens", 0) + (output_tokens or 0)
         current_cost = getattr(self, "_cost_usd", 0.0) + (cost_usd or 0.0)
+        current_cache_read = (
+            getattr(self, "_cache_read_input_tokens", 0) + cache_read_input_tokens
+        )
+        current_cache_creation_5m = (
+            getattr(self, "_cache_creation_5m_input_tokens", 0)
+            + cache_creation_5m_input_tokens
+        )
+        current_cache_creation_1h = (
+            getattr(self, "_cache_creation_1h_input_tokens", 0)
+            + cache_creation_1h_input_tokens
+        )
         self._input_tokens = current_input
         self._output_tokens = current_output
         self._cost_usd = current_cost
+        self._cache_read_input_tokens = current_cache_read
+        self._cache_creation_5m_input_tokens = current_cache_creation_5m
+        self._cache_creation_1h_input_tokens = current_cache_creation_1h
+        self._refresh_usage()
+
+    def _refresh_usage(self) -> None:
+        input_tokens = getattr(self, "_input_tokens", 0)
+        output_tokens = getattr(self, "_output_tokens", 0)
+        cost_usd = getattr(self, "_cost_usd", 0.0)
+        cache_read = getattr(self, "_cache_read_input_tokens", 0)
+        cache_creation_5m = getattr(self, "_cache_creation_5m_input_tokens", 0)
+        cache_creation_1h = getattr(self, "_cache_creation_1h_input_tokens", 0)
         self.query_one("#status-usage", Static).update(
-            f"input {current_input} / output {current_output} / ${current_cost:.4f}"
+            format_usage_status(
+                input_tokens,
+                output_tokens,
+                cost_usd,
+                cache_read,
+                cache_creation_5m,
+                cache_creation_1h,
+            )
         )

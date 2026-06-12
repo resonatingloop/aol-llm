@@ -53,7 +53,10 @@ class AnthropicProvider:
         if not _rejects_sampling_parameters(model):
             payload["temperature"] = temperature
         if prompt_cache is not None:
-            payload["cache_control"] = {"type": prompt_cache.type}
+            cache_control: dict[str, str] = {"type": prompt_cache.type}
+            if prompt_cache.ttl == "1h":
+                cache_control["ttl"] = prompt_cache.ttl
+            payload["cache_control"] = cache_control
         if system is not None:
             payload["system"] = system
 
@@ -64,7 +67,8 @@ class AnthropicProvider:
         }
         input_tokens: int | None = None
         output_tokens: int | None = None
-        cache_creation_input_tokens = 0
+        cache_creation_5m_input_tokens = 0
+        cache_creation_1h_input_tokens = 0
         cache_read_input_tokens = 0
 
         try:
@@ -97,10 +101,27 @@ class AnthropicProvider:
                                 )
                             usage = event.get("usage", {})
                             output_tokens = _optional_int(usage.get("output_tokens"))
-                            cache_creation_input_tokens = (
-                                _optional_int(usage.get("cache_creation_input_tokens"))
-                                or 0
-                            )
+                            cache_creation = usage.get("cache_creation")
+                            if isinstance(cache_creation, dict):
+                                cache_creation_5m_input_tokens = (
+                                    _optional_int(
+                                        cache_creation.get("ephemeral_5m_input_tokens")
+                                    )
+                                    or 0
+                                )
+                                cache_creation_1h_input_tokens = (
+                                    _optional_int(
+                                        cache_creation.get("ephemeral_1h_input_tokens")
+                                    )
+                                    or 0
+                                )
+                            else:
+                                cache_creation_5m_input_tokens = (
+                                    _optional_int(
+                                        usage.get("cache_creation_input_tokens")
+                                    )
+                                    or 0
+                                )
                             cache_read_input_tokens = (
                                 _optional_int(usage.get("cache_read_input_tokens")) or 0
                             )
@@ -116,7 +137,8 @@ class AnthropicProvider:
                                     input_tokens=input_tokens,
                                     output_tokens=output_tokens,
                                     model=model,
-                                    cache_creation_input_tokens=cache_creation_input_tokens,
+                                    cache_creation_5m_input_tokens=cache_creation_5m_input_tokens,
+                                    cache_creation_1h_input_tokens=cache_creation_1h_input_tokens,
                                     cache_read_input_tokens=cache_read_input_tokens,
                                 ),
                             )

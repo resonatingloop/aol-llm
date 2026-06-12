@@ -8,6 +8,7 @@ Role = Literal["user", "assistant"]
 ProviderKind = Literal["anthropic", "openai_compatible"]
 PromptStatus = Literal["draft", "canonical", "archived"]
 PromptCacheType = Literal["ephemeral"]
+PromptCacheTTL = Literal["5m", "1h"]
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,7 @@ class ProviderConfig:
 @dataclass(frozen=True)
 class PromptCacheControl:
     type: PromptCacheType = "ephemeral"
+    ttl: PromptCacheTTL = "5m"
 
 
 @dataclass(frozen=True)
@@ -115,7 +117,8 @@ class TokenUsage:
     input_tokens: int
     output_tokens: int
     model: str
-    cache_creation_input_tokens: int = 0
+    cache_creation_5m_input_tokens: int = 0
+    cache_creation_1h_input_tokens: int = 0
     cache_read_input_tokens: int = 0
 
 

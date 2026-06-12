@@ -124,7 +124,7 @@ The transcript and conversation list are scrollable when their contents are
 longer than the visible area. New chat output scrolls the transcript to the
 bottom as it streams.
 
-Type a message in the composer and send it with `f5`. Regular `enter`
+Type a message in the composer and send it with `f3`. Regular `enter`
 continues editing in the composer.
 
 The settings screen can update the reply name used by the current chat.
@@ -132,35 +132,41 @@ Provider config and API keys are still edited manually for now.
 
 ## Slash Commands
 
-Slash commands run from the composer with `f5`. They are local app commands and
+Slash commands run from the composer with `f3`. They are local app commands and
 are not saved as chat messages.
 
 | Command | Action |
 | --- | --- |
-| `/cache on` | Enable Claude prompt caching |
+| `/cache on` | Enable one-hour Claude prompt caching |
+| `/cache 1h` | Enable one-hour Claude prompt caching |
+| `/cache 5m` | Enable five-minute Claude prompt caching |
 | `/cache off` | Disable Claude prompt caching |
 | `/cache status` | Show whether Claude prompt caching is enabled |
 | `/help` | Show the current command summary |
+| `/copy` | Copy last prompt + response pair in active chat to clipboard |
+| `/export` | Open export menu |
+| `/away` | Open a-way menu |
+| `/buddy` | Open active buddy picker |
+| `/chatname` | Open current chat name editor |
+| `/quit` | Quit |
+| `/settings` | Open settings |
 
 Prompt caching only affects Anthropic/Claude requests. When enabled, the app
-uses Claude's automatic ephemeral prompt caching for future sends.
+uses Claude's automatic ephemeral prompt caching for future sends. The status
+footer shows cache reads as `r`, five-minute writes as `w5`, and one-hour writes
+as `w1h`.
 
 ## Keybindings
 
 | Key | Action |
 | --- | --- |
 | `f1` | Settings |
-| `f2` | Model |
-| `f3` | a-way |
-| `f4` | Rename buddy |
-| `f5` | Send |
-| `f6` | New |
+| `f2` | Rename buddy |
+| `f3` | Send message |
+| `f4` | New chat |
+| `f5` | Archive chat |
+| `f6` | Delete chat |
 | `f7` | Retry |
-| `f8` | Rename chat |
-| `f9` | Export |
-| `ctrl+y` | Copy |
-| `ctrl+x` | Archive |
-| `ctrl+d` | Delete |
 | `ctrl+c` | Quit |
 | `escape` | Close settings or cancel a modal |
 
@@ -178,7 +184,7 @@ This is local display text only. Stored messages still use the internal
 
 ## a-way Messages
 
-a-way messages are per-conversation. Use `f3` to edit the current
+a-way messages are per-conversation. Use `/away` to edit the current
 conversation's a-way. Save a blank a-way to clear it.
 
 a-way messages are stored on the conversation record, not in the message list.
@@ -187,7 +193,7 @@ changed.
 
 ## Export
 
-Use `f9` to export the current chat. Choose Markdown for a readable document
+Use `/export` to export the current chat. Choose Markdown for a readable document
 or JSON for structured data.
 
 When running with the default app database path, exports are written under:

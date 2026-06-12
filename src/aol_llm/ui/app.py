@@ -8,9 +8,10 @@ from textual.widgets import ListView
 from aol_llm.chat import ChatEvent, ChatService, ModelChoice
 from aol_llm.core.errors import ProviderError
 from aol_llm.core.types import Buddy, Conversation
-from aol_llm.export import export_markdown
+from aol_llm.export import export_last_pair_markdown, export_markdown
 from aol_llm.ui.commands import SlashCommand, parse_slash_command
 from aol_llm.ui.modals import (
+    BuddyPickerModal,
     ConfirmModal,
     ExportFormatModal,
     ModelPickerModal,
@@ -118,6 +119,12 @@ class THRESHOLD36(App[None]):
             self._switch_current_model,
         )
 
+    def action_open_buddy_picker(self) -> None:
+        self.push_screen(
+            BuddyPickerModal(self._chat_service.list_buddies()),
+            self._switch_current_buddy,
+        )
+
     def action_open_settings(self) -> None:
         if isinstance(self.screen, SettingsScreen):
             self.pop_screen()
@@ -165,6 +172,17 @@ class THRESHOLD36(App[None]):
             )
         )
         self.notify("Copied chat to clipboard")
+
+    def action_copy_last_pair(self) -> None:
+        if self._current_conversation is None:
+            return
+        messages = self._chat_service.messages(self._current_conversation.id)
+        content = export_last_pair_markdown(messages, reply_name=self._reply_name())
+        if content is None:
+            self.notify("No complete prompt/response pair to copy", severity="warning")
+            return
+        self.copy_to_clipboard(content)
+        self.notify("Copied last prompt/response pair")
 
     def action_archive_current_chat(self) -> None:
         self.push_screen(
@@ -235,6 +253,11 @@ class THRESHOLD36(App[None]):
         self._refresh_buddy_list()
         self._refresh_conversation_list()
 
+    def _switch_current_buddy(self, buddy: Buddy | None) -> None:
+        if buddy is None:
+            return
+        self._set_current_buddy(buddy)
+
     def _update_system_prompt(self, system_prompt: str | None) -> None:
         if self._current_conversation is None or system_prompt is None:
             return
@@ -259,30 +282,66 @@ class THRESHOLD36(App[None]):
             self._handle_cache_command(command.args)
             return
         if command.name == "help":
-            self.notify("Commands: /cache on, /cache off, /cache status")
+            self.notify(
+                "Commands: /cache, /copy, /export, /away, /buddy, "
+                "/chatname, /settings, /quit"
+            )
+            return
+        if command.args:
+            self.notify(f"Usage: /{command.name}", severity="warning")
+            return
+        if command.name == "copy":
+            self.action_copy_last_pair()
+            return
+        if command.name == "export":
+            self.action_export_current_chat()
+            return
+        if command.name == "away":
+            self.action_edit_system_prompt()
+            return
+        if command.name == "buddy":
+            self.action_open_buddy_picker()
+            return
+        if command.name == "chatname":
+            self.action_rename_current_chat()
+            return
+        if command.name == "quit":
+            self.exit()
+            return
+        if command.name == "settings":
+            self.action_open_settings()
             return
         label = "/" if not command.name else f"/{command.name}"
         self.notify(f"Unknown command: {label}", severity="warning")
 
     def _handle_cache_command(self, args: tuple[str, ...]) -> None:
         if len(args) > 1:
-            self.notify("Usage: /cache on|off|status", severity="warning")
+            self.notify("Usage: /cache on|1h|5m|off|status", severity="warning")
             return
 
         subcommand = args[0].lower() if args else "status"
         if subcommand == "on":
-            self._chat_service.set_prompt_cache_enabled(True)
-            self.notify("Claude prompt cache on")
+            self._chat_service.set_prompt_cache_mode("1h")
+            self.notify("Claude prompt cache 1h")
+            return
+        if subcommand == "1h":
+            self._chat_service.set_prompt_cache_mode("1h")
+            self.notify("Claude prompt cache 1h")
+            return
+        if subcommand == "5m":
+            self._chat_service.set_prompt_cache_mode("5m")
+            self.notify("Claude prompt cache 5m")
             return
         if subcommand == "off":
-            self._chat_service.set_prompt_cache_enabled(False)
+            self._chat_service.set_prompt_cache_mode("off")
             self.notify("Claude prompt cache off")
             return
         if subcommand == "status":
-            state = "on" if self._chat_service.prompt_cache_enabled() else "off"
-            self.notify(f"Claude prompt cache is {state}")
+            self.notify(
+                f"Claude prompt cache is {self._chat_service.prompt_cache_mode()}"
+            )
             return
-        self.notify("Usage: /cache on|off|status", severity="warning")
+        self.notify("Usage: /cache on|1h|5m|off|status", severity="warning")
 
     def _export_current_chat(self, format: str | None) -> None:
         if self._current_conversation is None or format is None:
@@ -401,6 +460,9 @@ class THRESHOLD36(App[None]):
                     event.input_tokens,
                     event.output_tokens,
                     event.cost_usd,
+                    event.cache_read_input_tokens,
+                    event.cache_creation_5m_input_tokens,
+                    event.cache_creation_1h_input_tokens,
                 )
         except ProviderError as error:
             if show_provider_error:

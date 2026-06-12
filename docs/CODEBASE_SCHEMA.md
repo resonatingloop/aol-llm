@@ -66,9 +66,10 @@ src/aol_llm/providers/base.py
 
 Provider adapters must yield normalized `StreamChunk` objects and raise
 `ProviderError` subclasses at the provider boundary. `PromptCacheControl` is
-currently used for Anthropic automatic prompt caching. Cache creation/read token
-counts are normalized in `TokenUsage` for cost calculation; message storage
-still persists only input tokens, output tokens, and total cost.
+currently used for Anthropic automatic prompt caching with `5m` or `1h` TTL.
+Cache creation/read token counts are normalized in `TokenUsage` for cost
+calculation; message storage still persists only input tokens, output tokens,
+and total cost.
 
 Stored message roles remain `user` and `assistant`. UI-facing reply names are
 presentation metadata resolved from the conversation override or buddy name.
@@ -268,7 +269,7 @@ src/aol_llm/ui/app.py
   action handlers
   current buddy/conversation state
   transcript reload and streaming coordination
-  slash command dispatch
+  slash command dispatch for prompt-cache and chat controls
 
 src/aol_llm/ui/commands.py
   composer slash command parsing
@@ -279,6 +280,7 @@ src/aol_llm/ui/screens.py
 
 src/aol_llm/ui/modals.py
   ModelPickerModal
+  BuddyPickerModal
   RenameModal
   SystemPromptModal
   ExportFormatModal
@@ -290,6 +292,7 @@ src/aol_llm/ui/widgets.py
   ChatTranscript
   Composer
   StatusBar
+  format_usage_status
 
 src/aol_llm/ui/styles.py
   CSS
@@ -300,17 +303,12 @@ Current keymap:
 
 ```text
 f1       Settings
-f2       Model
-f3       a-way
-f4       Rename buddy
-f5       Send
-f6       New
+f2       Rename buddy
+f3       Send message
+f4       New chat
+f5       Archive chat
+f6       Delete chat
 f7       Retry
-f8       Rename chat
-f9       Export
-ctrl+y   Copy
-ctrl+x   Archive
-ctrl+d   Delete
 ctrl+c   Quit
 escape   cancel modal/settings
 ```
@@ -324,12 +322,14 @@ built-in `quit`.
 src/aol_llm/export.py
   export_markdown
   export_json
+  export_last_pair_markdown
   write_export
 ```
 
 Markdown export renders user-facing reply names for assistant messages when a
-resolved reply name is supplied. JSON preserves stored roles and can include
-`reply_name` metadata.
+resolved reply name is supplied. Last-pair export copies only the final complete
+user/assistant exchange. JSON preserves stored roles and can include `reply_name`
+metadata.
 
 ## Tests
 

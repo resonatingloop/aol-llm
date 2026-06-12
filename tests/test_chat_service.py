@@ -330,13 +330,23 @@ def test_prompt_cache_setting_defaults_off_and_can_toggle(tmp_path: Path) -> Non
     service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
     service.init()
 
+    assert service.prompt_cache_mode() == "off"
+    assert service.prompt_cache_enabled() is False
+
+    service.set_prompt_cache_mode("5m")
+    assert service.prompt_cache_mode() == "5m"
+    assert service.prompt_cache_enabled() is True
+
+    service.set_prompt_cache_mode("1h")
+    assert service.prompt_cache_mode() == "1h"
+    assert service.prompt_cache_enabled() is True
+
+    service.set_prompt_cache_mode("off")
+    assert service.prompt_cache_mode() == "off"
     assert service.prompt_cache_enabled() is False
 
     service.set_prompt_cache_enabled(True)
-    assert service.prompt_cache_enabled() is True
-
-    service.set_prompt_cache_enabled(False)
-    assert service.prompt_cache_enabled() is False
+    assert service.prompt_cache_mode() == "1h"
 
 
 @pytest.mark.asyncio
@@ -384,12 +394,12 @@ async def test_send_message_passes_prompt_cache_for_anthropic(
         api_key_getter=lambda provider_id: None,
     )
     service.init()
-    service.set_prompt_cache_enabled(True)
+    service.set_prompt_cache_mode("1h")
     conversation = service.create_conversation()
 
     _ = [event async for event in service.send_message(conversation.id, "hello")]
 
-    assert seen_cache == [PromptCacheControl()]
+    assert seen_cache == [PromptCacheControl(ttl="1h")]
 
 
 def test_update_system_prompt_sets_and_clears_prompt(tmp_path: Path) -> None:
