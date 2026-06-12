@@ -28,6 +28,7 @@ def test_init_db_applies_migrations_idempotently(db_path: Path) -> None:
         "002_buddies_prompts",
         "003_anthropic_opus_4_8",
         "004_conversation_assistant_name",
+        "005_anthropic_fable_5",
     ]
 
 

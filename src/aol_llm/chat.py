@@ -23,6 +23,7 @@ ProviderFactory = Callable[[ProviderConfig, str | None], Provider]
 ApiKeyGetter = Callable[[str], str | None]
 DEFAULT_PROVIDER_MODELS = {
     "anthropic": [
+        "claude-fable-5",
         "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-sonnet-4-6",

@@ -7,6 +7,7 @@ import respx
 
 from aol_llm.core.errors import (
     AuthError,
+    ContentFilterError,
     NetworkError,
     RateLimitError,
     UnknownProviderError,
@@ -173,6 +174,32 @@ async def test_anthropic_opus_4_7_omits_temperature() -> None:
     payload = json.loads(route.calls.last.request.content)
     assert "thinking" not in payload
     assert "temperature" not in payload
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_anthropic_fable_refusal_maps_to_content_filter_error() -> None:
+    respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
+                {
+                    "type": "message_delta",
+                    "delta": {"stop_reason": "refusal"},
+                    "usage": {"output_tokens": 0},
+                },
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = AnthropicProvider(
+        config=anthropic_opus_config("claude-fable-5"),
+        api_key="test-key",
+    )
+
+    with pytest.raises(ContentFilterError):
+        await collect(provider)
 
 
 @respx.mock

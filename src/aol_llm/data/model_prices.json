@@ -1,5 +1,11 @@
 {
   "models": {
+    "claude-fable-5": {
+      "input_per_mtok": 10.0,
+      "output_per_mtok": 50.0,
+      "priced": true,
+      "upstream_model": "claude-fable-5"
+    },
     "claude-opus-4-7": {
       "input_per_mtok": 5.0,
       "output_per_mtok": 25.0,

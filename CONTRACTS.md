@@ -265,6 +265,7 @@ current migrations:
 - `002_buddies_prompts.sql`
 - `003_anthropic_opus_4_8.sql`
 - `004_conversation_assistant_name.sql`
+- `005_anthropic_fable_5.sql`
 
 ## storage layer contract
 

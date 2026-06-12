@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 
 import httpx
 
-from aol_llm.core.errors import AuthError, UnknownProviderError
+from aol_llm.core.errors import AuthError, ContentFilterError, UnknownProviderError
 from aol_llm.core.types import Message, ProviderConfig, StreamChunk, TokenUsage
 from aol_llm.providers._http import (
     iter_sse_json,
@@ -76,6 +76,14 @@ class AnthropicProvider:
                             if isinstance(text, str) and text:
                                 yield StreamChunk(text=text, done=False)
                         elif event_type == "message_delta":
+                            delta = event.get("delta", {})
+                            if (
+                                isinstance(delta, dict)
+                                and delta.get("stop_reason") == "refusal"
+                            ):
+                                raise ContentFilterError(
+                                    "Anthropic refused the request"
+                                )
                             usage = event.get("usage", {})
                             output_tokens = _optional_int(usage.get("output_tokens"))
                         elif event_type == "message_stop":

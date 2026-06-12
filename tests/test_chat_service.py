@@ -124,6 +124,7 @@ def test_init_seeds_buddies_for_configured_provider_defaults(tmp_path: Path) -> 
     service.init()
 
     assert {(buddy.provider_id, buddy.model) for buddy in service.list_buddies()} >= {
+        ("anthropic", "claude-fable-5"),
         ("anthropic", "claude-opus-4-8"),
         ("openai", "gpt-5"),
         ("mistral", "mistral-small-2603"),
@@ -294,6 +295,7 @@ def test_model_choices_include_current_anthropic_models(tmp_path: Path) -> None:
         (choice.provider_id, choice.model) for choice in service.model_choices()
     ] == [
         ("anthropic", "claude-test"),
+        ("anthropic", "claude-fable-5"),
         ("anthropic", "claude-opus-4-8"),
         ("anthropic", "claude-opus-4-7"),
         ("anthropic", "claude-sonnet-4-6"),
