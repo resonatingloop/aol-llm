@@ -1,12 +1,15 @@
 from dataclasses import fields, is_dataclass
 from pathlib import Path
+import subprocess
+import sys
+
+from textual.binding import Binding
 
 from aol_llm.chat import DEFAULT_PROVIDER_MODELS
 from aol_llm.config import default_config
-from aol_llm.core.pricing import load_pricing_snapshot
 from aol_llm.core import types
+from aol_llm.core.pricing import load_pricing_snapshot
 from aol_llm.ui.styles import APP_BINDINGS
-from textual.binding import Binding
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -173,3 +176,15 @@ def test_docs_do_not_contain_known_stale_claims() -> None:
     )
     for phrase in stale_phrases:
         assert phrase not in combined
+
+
+def test_generated_docs_are_current() -> None:
+    result = subprocess.run(
+        [sys.executable, "scripts/update_generated_docs.py", "--check"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr

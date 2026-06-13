@@ -90,10 +90,12 @@ src/aol_llm/secrets.py
 Built-in providers currently defined by default config:
 
 ```text
-anthropic  claude-opus-4-8          native Anthropic adapter
-openai     gpt-5                    https://api.openai.com/v1
-mistral    mistral-small-2603       https://api.mistral.ai/v1
-xai        grok-4.3                 https://api.x.ai/v1
+<!-- BEGIN AUTOGEN:provider-defaults-text -->
+anthropic  claude-opus-4-8
+openai     gpt-5                     https://api.openai.com/v1
+mistral    mistral-small-2603        https://api.mistral.ai/v1
+xai        grok-4.3                  https://api.x.ai/v1
+<!-- END AUTOGEN:provider-defaults-text -->
 ```
 
 API keys use service `aol-llm.<provider_id>` and username `api_key`.
@@ -301,6 +303,7 @@ src/aol_llm/ui/styles.py
 Current keymap:
 
 ```text
+<!-- BEGIN AUTOGEN:keybindings-text -->
 f1       Settings
 f2       Rename buddy
 f3       Send message
@@ -309,6 +312,7 @@ f5       Archive chat
 f6       Delete chat
 f7       Retry
 ctrl+c   Quit
+<!-- END AUTOGEN:keybindings-text -->
 escape   cancel modal/settings
 ```
 

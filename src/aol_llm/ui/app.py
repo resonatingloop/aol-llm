@@ -9,7 +9,11 @@ from aol_llm.chat import ChatEvent, ChatService, ModelChoice
 from aol_llm.core.errors import ProviderError
 from aol_llm.core.types import Buddy, Conversation
 from aol_llm.export import export_last_pair_markdown, export_markdown
-from aol_llm.ui.commands import SlashCommand, parse_slash_command
+from aol_llm.ui.commands import (
+    SlashCommand,
+    parse_slash_command,
+    slash_command_help_summary,
+)
 from aol_llm.ui.modals import (
     BuddyPickerModal,
     ConfirmModal,
@@ -282,10 +286,7 @@ class THRESHOLD36(App[None]):
             self._handle_cache_command(command.args)
             return
         if command.name == "help":
-            self.notify(
-                "Commands: /cache, /copy, /export, /away, /buddy, "
-                "/chatname, /settings, /quit"
-            )
+            self.notify(slash_command_help_summary())
             return
         if command.args:
             self.notify(f"Usage: /{command.name}", severity="warning")

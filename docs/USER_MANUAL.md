@@ -42,6 +42,7 @@ The app reads provider defaults from:
 
 If the file does not exist, defaults are loaded in memory. A minimal config is:
 
+<!-- BEGIN AUTOGEN:provider-defaults-toml -->
 ```toml
 [ui]
 theme = "default"
@@ -62,6 +63,7 @@ default_model = "mistral-small-2603"
 base_url = "https://api.x.ai/v1"
 default_model = "grok-4.3"
 ```
+<!-- END AUTOGEN:provider-defaults-toml -->
 
 API keys are not stored in this file.
 
@@ -135,6 +137,7 @@ Provider config and API keys are still edited manually for now.
 Slash commands run from the composer with `f3`. They are local app commands and
 are not saved as chat messages.
 
+<!-- BEGIN AUTOGEN:slash-commands-table -->
 | Command | Action |
 | --- | --- |
 | `/cache on` | Enable one-hour Claude prompt caching |
@@ -150,6 +153,7 @@ are not saved as chat messages.
 | `/chatname` | Open current chat name editor |
 | `/quit` | Quit |
 | `/settings` | Open settings |
+<!-- END AUTOGEN:slash-commands-table -->
 
 Prompt caching only affects Anthropic/Claude requests. When enabled, the app
 uses Claude's automatic ephemeral prompt caching for future sends. The status
@@ -158,6 +162,7 @@ as `w1h`.
 
 ## Keybindings
 
+<!-- BEGIN AUTOGEN:keybindings-table -->
 | Key | Action |
 | --- | --- |
 | `f1` | Settings |
@@ -168,6 +173,7 @@ as `w1h`.
 | `f6` | Delete chat |
 | `f7` | Retry |
 | `ctrl+c` | Quit |
+<!-- END AUTOGEN:keybindings-table -->
 | `escape` | Close settings or cancel a modal |
 
 Destructive actions ask for confirmation first.

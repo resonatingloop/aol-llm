@@ -330,6 +330,7 @@ OpenAI-compatible providers ignore the cache policy.
 
 config at `platformdirs.user_config_dir("aol-llm") / "config.toml"`. schema:
 
+<!-- BEGIN AUTOGEN:provider-defaults-toml -->
 ```toml
 [ui]
 theme = "default"
@@ -350,6 +351,7 @@ default_model = "mistral-small-2603"
 base_url = "https://api.x.ai/v1"
 default_model = "grok-4.3"
 ```
+<!-- END AUTOGEN:provider-defaults-toml -->
 
 api keys live in keyring under service `aol-llm.<provider_id>`, key `api_key`. accessed via `keyring.get_password("aol-llm.anthropic", "api_key")`. setup screen writes to keyring; never write keys to config.toml or anywhere on disk.
 
@@ -418,25 +420,32 @@ screens:
 - `ConfirmModal`: generic yes/no for destructive ops
 
 keybindings (use textual's BINDINGS):
-- `f1` Settings
-- `f2` Rename buddy
-- `f3` Send message (and submit slash commands; enter = newline in composer)
-- `f4` New chat
-- `f5` Archive chat (with ConfirmModal)
-- `f6` Delete chat (with ConfirmModal)
-- `f7` Retry
-- `ctrl+c` Quit
+
+<!-- BEGIN AUTOGEN:keybindings-table -->
+| Key | Action |
+| --- | --- |
+| `f1` | Settings |
+| `f2` | Rename buddy |
+| `f3` | Send message |
+| `f4` | New chat |
+| `f5` | Archive chat |
+| `f6` | Delete chat |
+| `f7` | Retry |
+| `ctrl+c` | Quit |
+<!-- END AUTOGEN:keybindings-table -->
 
 streaming UI: the ChatTranscript subscribes to the provider's `StreamChunk` async iterator and appends `chunk.text` as it arrives. on `done=True`, persists the message via `storage.add_message` with the usage fields.
 
 composer slash commands are local UI commands and are not persisted as messages.
 current commands:
 
+<!-- BEGIN AUTOGEN:slash-commands-list -->
 - `/cache on`
 - `/cache 1h`
 - `/cache 5m`
 - `/cache off`
 - `/cache status`
+- `/help`
 - `/copy`
 - `/export`
 - `/away`
@@ -444,7 +453,7 @@ current commands:
 - `/chatname`
 - `/quit`
 - `/settings`
-- `/help`
+<!-- END AUTOGEN:slash-commands-list -->
 
 ## acceptance criteria per step
 

@@ -69,6 +69,7 @@ Config uses XDG paths:
 
 Minimal config shape:
 
+<!-- BEGIN AUTOGEN:provider-defaults-toml -->
 ```toml
 [ui]
 theme = "default"
@@ -89,6 +90,7 @@ default_model = "mistral-small-2603"
 base_url = "https://api.x.ai/v1"
 default_model = "grok-4.3"
 ```
+<!-- END AUTOGEN:provider-defaults-toml -->
 
 API keys are intentionally not stored in TOML or SQLite.
 
@@ -105,6 +107,7 @@ See [docs/USER_MANUAL.md](./docs/USER_MANUAL.md) for the current walkthrough.
 
 ## Keybindings
 
+<!-- BEGIN AUTOGEN:keybindings-table -->
 | Key | Action |
 | --- | --- |
 | `f1` | Settings |
@@ -115,6 +118,7 @@ See [docs/USER_MANUAL.md](./docs/USER_MANUAL.md) for the current walkthrough.
 | `f6` | Delete chat |
 | `f7` | Retry |
 | `ctrl+c` | Quit |
+<!-- END AUTOGEN:keybindings-table -->
 
 ## Development
 
@@ -137,6 +141,12 @@ uv run pytest
 uv run ruff check
 uv run ruff format --check
 uv run mypy --strict src tests
+```
+
+Update generated documentation blocks:
+
+```bash
+uv run python scripts/update_generated_docs.py
 ```
 
 Format files:
