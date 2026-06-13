@@ -175,6 +175,10 @@ class SystemPromptModal(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="system-prompt-modal"):
             yield Label("a-way")
+            yield Label(
+                "Changing a-way mid-conversation changes the cached prefix; "
+                "Claude will write a fresh cache for future sends.",
+            )
             yield TextArea(text=self._current_prompt, id="system-prompt-input")
             with Horizontal(classes="modal-actions"):
                 yield Button("Cancel", id="cancel-system-prompt")
