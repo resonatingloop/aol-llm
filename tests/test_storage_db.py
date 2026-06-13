@@ -29,6 +29,7 @@ def test_init_db_applies_migrations_idempotently(db_path: Path) -> None:
         "003_anthropic_opus_4_8",
         "004_conversation_assistant_name",
         "005_anthropic_fable_5",
+        "006_buddy_memories_and_cache_usage",
     ]
 
 
@@ -156,6 +157,9 @@ def test_messages_preserve_usage_fields_and_order(db_path: Path) -> None:
         output_tokens=20,
         cost_usd=0.001,
         prompt_version_id=version.id,
+        cache_creation_5m_input_tokens=0,
+        cache_creation_1h_input_tokens=0,
+        cache_read_input_tokens=0,
     )
 
     messages = db.list_messages(conversation.id, db_path)
@@ -166,6 +170,125 @@ def test_messages_preserve_usage_fields_and_order(db_path: Path) -> None:
     assert messages[1].output_tokens == 20
     assert messages[1].cost_usd == 0.001
     assert messages[1].prompt_version_id == version.id
+    assert messages[0].cache_creation_5m_input_tokens is None
+    assert messages[0].cache_creation_1h_input_tokens is None
+    assert messages[0].cache_read_input_tokens is None
+    assert messages[1].cache_creation_5m_input_tokens == 0
+    assert messages[1].cache_creation_1h_input_tokens == 0
+    assert messages[1].cache_read_input_tokens == 0
+
+
+def test_buddy_memory_is_per_buddy(db_path: Path) -> None:
+    first = db.ensure_buddy("anthropic", "claude-a", db_path)
+    second = db.ensure_buddy("anthropic", "claude-b", db_path)
+    with db.get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO buddy_memories (buddy_id, memory_text, updated_at)
+            VALUES (?, ?, ?)
+            """,
+            (first.id, "First buddy memory.", "2026-06-13T00:00:00+00:00"),
+        )
+
+    memory = db.get_buddy_memory(first.id, db_path)
+
+    assert memory is not None
+    assert memory.buddy_id == first.id
+    assert memory.memory_text == "First buddy memory."
+    assert memory.enabled is True
+    assert memory.suppress_injection is False
+    assert db.get_buddy_memory(second.id, db_path) is None
+
+
+def test_messages_newer_than_watermark_for_buddy_uses_total_order(
+    db_path: Path,
+) -> None:
+    first = db.ensure_buddy("anthropic", "claude-a", db_path)
+    second = db.ensure_buddy("anthropic", "claude-b", db_path)
+    first_chat = db.create_conversation(
+        "First",
+        first.provider_id,
+        first.model,
+        buddy_id=first.id,
+        path=db_path,
+    )
+    second_chat = db.create_conversation(
+        "Second",
+        first.provider_id,
+        first.model,
+        buddy_id=first.id,
+        path=db_path,
+    )
+    other_buddy_chat = db.create_conversation(
+        "Other",
+        second.provider_id,
+        second.model,
+        buddy_id=second.id,
+        path=db_path,
+    )
+    with db.get_connection(db_path) as connection:
+        connection.executemany(
+            """
+            INSERT INTO messages (id, conversation_id, role, content, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    "message-a",
+                    first_chat.id,
+                    "user",
+                    "before",
+                    "2026-06-13T00:00:00+00:00",
+                ),
+                (
+                    "message-b",
+                    second_chat.id,
+                    "assistant",
+                    "watermark",
+                    "2026-06-13T00:00:00+00:00",
+                ),
+                (
+                    "message-c",
+                    first_chat.id,
+                    "user",
+                    "same timestamp newer id",
+                    "2026-06-13T00:00:00+00:00",
+                ),
+                (
+                    "message-d",
+                    second_chat.id,
+                    "assistant",
+                    "newer timestamp",
+                    "2026-06-13T00:00:01+00:00",
+                ),
+                (
+                    "message-z",
+                    other_buddy_chat.id,
+                    "user",
+                    "other buddy",
+                    "2026-06-13T00:00:02+00:00",
+                ),
+            ],
+        )
+        connection.execute(
+            """
+            INSERT INTO buddy_memories
+                (buddy_id, memory_text, watermark_created_at,
+                 watermark_message_id, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                first.id,
+                "Existing memory.",
+                "2026-06-13T00:00:00+00:00",
+                "message-b",
+                "2026-06-13T00:00:03+00:00",
+            ),
+        )
+
+    messages = db.messages_newer_than_watermark_for_buddy(first.id, db_path)
+
+    assert [message.id for message in messages] == ["message-c", "message-d"]
 
 
 def test_delete_message_removes_only_that_message(db_path: Path) -> None:

@@ -8,6 +8,7 @@ from aol_llm.core.pricing import ModelPricing, estimate_cost_usd, load_rate_card
 from aol_llm.core.requests import normalize_chat_request
 from aol_llm.core.types import (
     Buddy,
+    BuddyMemory,
     Conversation,
     Message,
     Prompt,
@@ -99,6 +100,23 @@ def test_buddy_and_prompt_types_capture_current_state_and_versions() -> None:
 
     assert buddy.prompt_version_id == version.id
     assert version.core == "Be precise."
+
+
+def test_buddy_memory_type_tracks_visible_memory_state() -> None:
+    now = datetime.now(UTC)
+    memory = BuddyMemory(
+        buddy_id="buddy-id",
+        memory_text="Standing decision.",
+        enabled=True,
+        suppress_injection=False,
+        watermark_created_at="2026-06-13T00:00:00+00:00",
+        watermark_message_id="message-id",
+        updated_at=now,
+    )
+
+    assert memory.memory_text == "Standing decision."
+    assert memory.enabled is True
+    assert memory.suppress_injection is False
 
 
 def test_provider_config_and_stream_chunk_shapes() -> None:

@@ -45,6 +45,7 @@ def test_all_migrations_add_buddy_prompt_tables_and_seed_defaults() -> None:
 
     assert tables == {
         "app_settings",
+        "buddy_memories",
         "buddies",
         "conversations",
         "messages",
@@ -77,6 +78,63 @@ def test_all_migrations_add_buddy_prompt_tables_and_seed_defaults() -> None:
         ).fetchone()[0]
         == 1
     )
+    memory_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info('buddy_memories')")
+    }
+    message_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info('messages')")
+    }
+    assert memory_columns >= {
+        "buddy_id",
+        "memory_text",
+        "enabled",
+        "suppress_injection",
+        "watermark_created_at",
+        "watermark_message_id",
+        "updated_at",
+    }
+    assert message_columns >= {
+        "cache_creation_5m_input_tokens",
+        "cache_creation_1h_input_tokens",
+        "cache_read_input_tokens",
+    }
+
+
+def test_buddy_memory_cascades_with_buddy_delete() -> None:
+    connection = sqlite3.connect(":memory:")
+    apply_all_migrations(connection)
+    buddy_id = connection.execute(
+        "SELECT id FROM buddies ORDER BY created_at LIMIT 1"
+    ).fetchone()[0]
+    connection.execute(
+        """
+        INSERT INTO buddy_memories (buddy_id, memory_text, updated_at)
+        VALUES (?, 'remember this', 'now')
+        """,
+        (buddy_id,),
+    )
+
+    connection.execute("DELETE FROM buddies WHERE id = ?", (buddy_id,))
+
+    assert connection.execute("SELECT COUNT(*) FROM buddy_memories").fetchone()[0] == 0
+
+
+def test_buddy_memory_watermark_requires_complete_pair() -> None:
+    connection = sqlite3.connect(":memory:")
+    apply_all_migrations(connection)
+    buddy_id = connection.execute(
+        "SELECT id FROM buddies ORDER BY created_at LIMIT 1"
+    ).fetchone()[0]
+
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            """
+            INSERT INTO buddy_memories
+                (buddy_id, memory_text, watermark_created_at, updated_at)
+            VALUES (?, '', '2026-06-13T00:00:00+00:00', 'now')
+            """,
+            (buddy_id,),
+        )
 
 
 def test_prompt_migration_links_existing_conversations_and_assistant_messages() -> None:

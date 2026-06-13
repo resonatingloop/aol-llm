@@ -35,6 +35,7 @@ src/aol_llm/core/types.py
   Message
   Conversation
   Buddy
+  BuddyMemory
   Prompt
   PromptVersion
   ProviderConfig
@@ -67,8 +68,8 @@ Provider adapters must yield normalized `StreamChunk` objects and raise
 `ProviderError` subclasses at the provider boundary. Anthropic automatic prompt
 caching with `5m` or `1h` TTL is configured inside the Anthropic adapter, not
 through the shared provider protocol. Cache creation/read token counts are
-normalized in `TokenUsage` for cost calculation; message storage still persists
-only input tokens, output tokens, and total cost.
+normalized in `TokenUsage` for cost calculation and persisted on assistant
+messages when reported.
 
 Stored message roles remain `user` and `assistant`. UI-facing reply names are
 presentation metadata resolved from the conversation override or buddy name.
@@ -145,6 +146,7 @@ src/aol_llm/storage/migrations/
   003_anthropic_opus_4_8.sql
   004_conversation_assistant_name.sql
   005_anthropic_fable_5.sql
+  006_buddy_memories_and_cache_usage.sql
 
 src/aol_llm/storage/rows.py
   sqlite.Row -> dataclass conversion
@@ -161,6 +163,7 @@ messages
 providers
 app_settings
 buddies
+buddy_memories
 prompts
 prompt_versions
 schema_migrations

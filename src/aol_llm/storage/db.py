@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from aol_llm.core.types import (
     Buddy,
+    BuddyMemory,
     Conversation,
     Message,
     Prompt,
@@ -21,6 +22,7 @@ from aol_llm.storage.connection import get_connection as _get_connection
 from aol_llm.storage.connection import init_db as _init_db
 from aol_llm.storage.rows import (
     buddy_from_row,
+    buddy_memory_from_row,
     conversation_from_row,
     db_value,
     format_dt,
@@ -171,6 +173,9 @@ def add_message(
     output_tokens: int | None = None,
     cost_usd: float | None = None,
     prompt_version_id: str | None = None,
+    cache_creation_5m_input_tokens: int | None = None,
+    cache_creation_1h_input_tokens: int | None = None,
+    cache_read_input_tokens: int | None = None,
 ) -> Message:
     message = Message(
         id=uuid4().hex,
@@ -183,14 +188,19 @@ def add_message(
         output_tokens=output_tokens,
         cost_usd=cost_usd,
         prompt_version_id=prompt_version_id,
+        cache_creation_5m_input_tokens=cache_creation_5m_input_tokens,
+        cache_creation_1h_input_tokens=cache_creation_1h_input_tokens,
+        cache_read_input_tokens=cache_read_input_tokens,
     )
     with get_connection(path) as connection:
         connection.execute(
             """
             INSERT INTO messages
-                (id, conversation_id, role, content, model, input_tokens, output_tokens, cost_usd, prompt_version_id, created_at)
+                (id, conversation_id, role, content, model, input_tokens, output_tokens,
+                 cost_usd, prompt_version_id, cache_creation_5m_input_tokens,
+                 cache_creation_1h_input_tokens, cache_read_input_tokens, created_at)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 message.id,
@@ -202,6 +212,9 @@ def add_message(
                 message.output_tokens,
                 message.cost_usd,
                 message.prompt_version_id,
+                message.cache_creation_5m_input_tokens,
+                message.cache_creation_1h_input_tokens,
+                message.cache_read_input_tokens,
                 format_dt(message.created_at),
             ),
         )
@@ -242,6 +255,53 @@ def get_buddy(id: str, path: Path | None = None) -> Buddy:
     if row is None:
         raise KeyError(f"unknown buddy: {id}")
     return buddy_from_row(row)
+
+
+def get_buddy_memory(buddy_id: str, path: Path | None = None) -> BuddyMemory | None:
+    with get_connection(path) as connection:
+        row = connection.execute(
+            "SELECT * FROM buddy_memories WHERE buddy_id = ?",
+            (buddy_id,),
+        ).fetchone()
+    return None if row is None else buddy_memory_from_row(row)
+
+
+def messages_newer_than_watermark_for_buddy(
+    buddy_id: str,
+    path: Path | None = None,
+) -> list[Message]:
+    memory = get_buddy_memory(buddy_id, path)
+    sql = """
+        SELECT messages.*
+        FROM messages
+        JOIN conversations ON conversations.id = messages.conversation_id
+        WHERE conversations.buddy_id = ?
+    """
+    params: list[object] = [buddy_id]
+    if (
+        memory is not None
+        and memory.watermark_created_at is not None
+        and memory.watermark_message_id is not None
+    ):
+        sql += """
+          AND (
+              messages.created_at > ?
+              OR (
+                  messages.created_at = ?
+                  AND messages.id > ?
+              )
+          )
+        """
+        params.extend(
+            [
+                memory.watermark_created_at,
+                memory.watermark_created_at,
+                memory.watermark_message_id,
+            ]
+        )
+    sql += " ORDER BY messages.created_at, messages.id"
+    with get_connection(path) as connection:
+        return [message_from_row(row) for row in connection.execute(sql, params)]
 
 
 def update_buddy(id: str, path: Path | None = None, **fields: object) -> Buddy:

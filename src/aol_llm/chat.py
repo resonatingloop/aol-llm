@@ -323,6 +323,9 @@ class ChatService:
                 output_tokens=usage.output_tokens,
                 cost_usd=cost_usd,
                 prompt_version_id=prompt_version_id,
+                cache_creation_5m_input_tokens=usage.cache_creation_5m_input_tokens,
+                cache_creation_1h_input_tokens=usage.cache_creation_1h_input_tokens,
+                cache_read_input_tokens=usage.cache_read_input_tokens,
             )
             db.update_conversation(
                 conversation_id,
@@ -335,9 +338,11 @@ class ChatService:
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
                 cost_usd=cost_usd,
-                cache_creation_5m_input_tokens=usage.cache_creation_5m_input_tokens,
-                cache_creation_1h_input_tokens=usage.cache_creation_1h_input_tokens,
-                cache_read_input_tokens=usage.cache_read_input_tokens,
+                cache_creation_5m_input_tokens=usage.cache_creation_5m_input_tokens
+                or 0,
+                cache_creation_1h_input_tokens=usage.cache_creation_1h_input_tokens
+                or 0,
+                cache_read_input_tokens=usage.cache_read_input_tokens or 0,
             )
             return
 

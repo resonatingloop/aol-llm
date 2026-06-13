@@ -25,8 +25,8 @@ amendments in `docs/SPEC_amendments_slices_1_4_5.md`.
 - No mid-conversation memory reload in v1.
 - No pre-warm in v1.
 - Watermark order is total and lexicographic: `(created_at, message_id)`.
-- Distiller default is `anthropic / claude-sonnet-4-6`; haiku and opus remain
-  configurable for comparison.
+- Distiller default is `anthropic / claude-opus-4-8`; lower-fidelity models are
+  not expected to preserve enough detail for this memory use case.
 
 ## Slice 0: Contract Correction
 
@@ -73,7 +73,8 @@ Rules:
 - Newer-than-watermark query uses strict lexicographic order:
   `created_at > watermark_created_at OR
   (created_at = watermark_created_at AND id > watermark_message_id)`.
-- Add haiku-class pricing entries while touching pricing ingestion.
+- Do not add Haiku-class pricing entries for the distiller path; the planned
+  default is Opus-class because memory summarization needs high fidelity.
 
 Tests:
 - migration shape and FK behavior
@@ -169,7 +170,7 @@ Negative instructions:
 Config:
 - `[memory].distiller_provider`
 - `[memory].distiller_model`
-- defaults: `anthropic`, `claude-sonnet-4-6`
+- defaults: `anthropic`, `claude-opus-4-8`
 
 Manual trigger:
 - `/memory distill`

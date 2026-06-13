@@ -7,6 +7,7 @@ from typing import Literal, cast
 
 from aol_llm.core.types import (
     Buddy,
+    BuddyMemory,
     Conversation,
     Message,
     Prompt,
@@ -58,6 +59,15 @@ def message_from_row(row: sqlite3.Row) -> Message:
         output_tokens=cast(int | None, row["output_tokens"]),
         cost_usd=cast(float | None, row["cost_usd"]),
         prompt_version_id=cast(str | None, row["prompt_version_id"]),
+        cache_creation_5m_input_tokens=cast(
+            int | None,
+            row["cache_creation_5m_input_tokens"],
+        ),
+        cache_creation_1h_input_tokens=cast(
+            int | None,
+            row["cache_creation_1h_input_tokens"],
+        ),
+        cache_read_input_tokens=cast(int | None, row["cache_read_input_tokens"]),
     )
 
 
@@ -73,6 +83,18 @@ def buddy_from_row(row: sqlite3.Row) -> Buddy:
         created_at=parse_dt(cast(str, row["created_at"])),
         updated_at=parse_dt(cast(str, row["updated_at"])),
         archived=bool(row["archived"]),
+    )
+
+
+def buddy_memory_from_row(row: sqlite3.Row) -> BuddyMemory:
+    return BuddyMemory(
+        buddy_id=cast(str, row["buddy_id"]),
+        memory_text=cast(str, row["memory_text"]),
+        enabled=bool(row["enabled"]),
+        suppress_injection=bool(row["suppress_injection"]),
+        watermark_created_at=cast(str | None, row["watermark_created_at"]),
+        watermark_message_id=cast(str | None, row["watermark_message_id"]),
+        updated_at=parse_dt(cast(str, row["updated_at"])),
     )
 
 

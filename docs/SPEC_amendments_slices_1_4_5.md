@@ -34,8 +34,10 @@ This is the same predicate the cold-start test in slice 2 already asserts; it ju
 **S1-c. Cache-breakdown columns: NULL means "not reported," never zero.**
 The new `cache_creation_5m_input_tokens` / `cache_creation_1h_input_tokens` / `cache_read_input_tokens` columns must distinguish "provider did not report this class" (`NULL`) from "reported as zero" (`0`). OpenAI-compat rows are `NULL` across all three; an Anthropic uncached send is `0`. Cost aggregation and the difficulty-ratio analysis depend on not conflating them. One sentence in the migration comment; one check in the row mapper.
 
-**S1-d. Add haiku-class rates to the pricing snapshot now.**
-While touching pricing ingestion for cache fields, add the haiku-class model rates so a cheap distiller model is *available* (default is still sonnet — see S4-c). This removes the "route around the missing rate by defaulting to sonnet" pressure and makes the model genuinely swappable for the diff Maria will run.
+**S1-d. Do not add haiku-class rates for the distiller path.**
+Haiku-class models are not expected to preserve enough detail for this memory
+use case. The distiller remains configurable, but the planned default is
+Opus-class and slice 1 should not add Haiku pricing solely for distillation.
 
 ---
 
@@ -58,8 +60,14 @@ The distiller must process transcript in bounded chunks, **oldest-first**, advan
 - **A full redistill (from null watermark over long history) is NOT a separate codepath.** It is the normal incremental distill — `(current doc, next oldest slice) → rewritten doc` — run as a loop until the watermark reaches the newest surviving message. Do not build a distinct "batch merge" path; reuse the incremental one. (This keeps reconsolidation behavior identical between incremental and full rebuild, and avoids a drift vector.)
 - This requirement exists because full redistill now fires on a **normal user action** (delete — see slice 5), not a rare one. It cannot be a single call that overflows context or blocks the UI.
 
-**S4-c. Distiller model default: sonnet, swappable, not haiku.**
-`[memory]` config gains `distiller_provider` + `distiller_model` (as planned). Default `anthropic / claude-sonnet-4-6`. Rationale is on the merits, not convenience: distillation is judge-salience + merge-against-prior-state + honor-negative-constraints, and its errors **compound** (each doc is the next distill's input). Small-model infidelities accrete rather than average out; this is the wrong stage to put a noisy component. Cost is trivial (small, infrequent distills), so opus is a legitimate config choice for maximum fidelity. Keep the model swappable; do not hardcode the floor — Maria settles it with a three-way diff (haiku/sonnet/opus on the same transcript) once the distiller prompt artifact is finalized.
+**S4-c. Distiller model default: opus, configurable.**
+`[memory]` config gains `distiller_provider` + `distiller_model` (as planned).
+Default `anthropic / claude-opus-4-8`. Rationale is on the merits, not
+convenience: distillation is judge-salience + merge-against-prior-state +
+honor-negative-constraints, and its errors **compound** (each doc is the next
+distill's input). Small-model infidelities accrete rather than average out; this
+is the wrong stage to put a noisy component. Keep the model configurable, but do
+not treat Haiku-class output as an expected viable path for this memory layer.
 
 ---
 

@@ -41,7 +41,14 @@ class FakeProvider:
         yield StreamChunk(
             text="",
             done=True,
-            usage=TokenUsage(input_tokens=10, output_tokens=20, model=model),
+            usage=TokenUsage(
+                input_tokens=10,
+                output_tokens=20,
+                model=model,
+                cache_creation_5m_input_tokens=0,
+                cache_creation_1h_input_tokens=0,
+                cache_read_input_tokens=0,
+            ),
         )
 
 
@@ -91,6 +98,9 @@ async def test_send_message_streams_and_persists_messages(tmp_path: Path) -> Non
     assert messages[1].input_tokens == 10
     assert messages[1].output_tokens == 20
     assert messages[1].cost_usd == 0.00005
+    assert messages[1].cache_creation_5m_input_tokens == 0
+    assert messages[1].cache_creation_1h_input_tokens == 0
+    assert messages[1].cache_read_input_tokens == 0
     assert (
         messages[1].prompt_version_id
         == db.get_conversation(
@@ -98,6 +108,72 @@ async def test_send_message_streams_and_persists_messages(tmp_path: Path) -> Non
             db_path,
         ).prompt_version_id
     )
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_send_persists_unreported_cache_fields_as_null(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chat.db"
+
+    class OpenAIProvider:
+        config: ProviderConfig
+
+        def __init__(self, config: ProviderConfig, api_key: str | None) -> None:
+            self.config = config
+            self.api_key = api_key
+
+        async def stream(
+            self,
+            messages: list[Message],
+            system: str | None,
+            model: str,
+            max_output_tokens: int = 4096,
+            temperature: float = 1.0,
+        ) -> AsyncIterator[StreamChunk]:
+            del messages, system, max_output_tokens, temperature
+            yield StreamChunk(text="ok", done=False)
+            yield StreamChunk(
+                text="",
+                done=True,
+                usage=TokenUsage(input_tokens=1, output_tokens=2, model=model),
+            )
+
+    def openai_provider_factory(
+        config: ProviderConfig,
+        api_key: str | None,
+        prompt_cache_ttl: str | None = None,
+    ) -> Provider:
+        del prompt_cache_ttl
+        return OpenAIProvider(config, api_key)
+
+    service = ChatService(
+        db_path=db_path,
+        app_config=AppConfig(
+            ui=UIConfig(default_provider="openai"),
+            providers={
+                "openai": ProviderSettings(
+                    default_model="gpt-test",
+                    base_url="https://api.openai.test/v1",
+                )
+            },
+        ),
+        provider_factory=openai_provider_factory,
+        api_key_getter=lambda provider_id: "secret",
+        rate_card={"gpt-test": ModelPricing(input_per_mtok=1.0, output_per_mtok=2.0)},
+    )
+    service.init()
+    conversation = service.create_conversation()
+
+    events = [event async for event in service.send_message(conversation.id, "hello")]
+    messages = db.list_messages(conversation.id, db_path)
+
+    assert events[-1].cache_creation_5m_input_tokens == 0
+    assert events[-1].cache_creation_1h_input_tokens == 0
+    assert events[-1].cache_read_input_tokens == 0
+    assert messages[1].cache_creation_5m_input_tokens is None
+    assert messages[1].cache_creation_1h_input_tokens is None
+    assert messages[1].cache_read_input_tokens is None
 
 
 def test_ensure_conversation_creates_default_when_empty(tmp_path: Path) -> None:

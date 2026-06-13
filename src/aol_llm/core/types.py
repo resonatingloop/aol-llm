@@ -21,6 +21,9 @@ class Message:
     output_tokens: int | None = None
     cost_usd: float | None = None
     prompt_version_id: str | None = None
+    cache_creation_5m_input_tokens: int | None = None
+    cache_creation_1h_input_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,17 @@ class Buddy:
     created_at: datetime
     updated_at: datetime
     archived: bool = False
+
+
+@dataclass(frozen=True)
+class BuddyMemory:
+    buddy_id: str
+    memory_text: str
+    enabled: bool
+    suppress_injection: bool
+    watermark_created_at: str | None
+    watermark_message_id: str | None
+    updated_at: datetime
 
 
 @dataclass(frozen=True)
@@ -109,9 +123,9 @@ class TokenUsage:
     input_tokens: int
     output_tokens: int
     model: str
-    cache_creation_5m_input_tokens: int = 0
-    cache_creation_1h_input_tokens: int = 0
-    cache_read_input_tokens: int = 0
+    cache_creation_5m_input_tokens: int | None = None
+    cache_creation_1h_input_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
 
 
 @dataclass(frozen=True)

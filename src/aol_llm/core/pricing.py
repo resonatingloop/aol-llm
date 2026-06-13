@@ -56,13 +56,19 @@ def estimate_cost_usd(
 
     input_cost = usage.input_tokens * pricing.input_per_mtok / 1_000_000
     cache_creation_5m_cost = (
-        usage.cache_creation_5m_input_tokens * pricing.input_per_mtok * 1.25 / 1_000_000
+        (usage.cache_creation_5m_input_tokens or 0)
+        * pricing.input_per_mtok
+        * 1.25
+        / 1_000_000
     )
     cache_creation_1h_cost = (
-        usage.cache_creation_1h_input_tokens * pricing.input_per_mtok * 2.0 / 1_000_000
+        (usage.cache_creation_1h_input_tokens or 0)
+        * pricing.input_per_mtok
+        * 2.0
+        / 1_000_000
     )
     cache_read_cost = (
-        usage.cache_read_input_tokens * pricing.input_per_mtok * 0.1 / 1_000_000
+        (usage.cache_read_input_tokens or 0) * pricing.input_per_mtok * 0.1 / 1_000_000
     )
     output_cost = usage.output_tokens * pricing.output_per_mtok / 1_000_000
     return (

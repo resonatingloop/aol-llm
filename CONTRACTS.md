@@ -51,6 +51,9 @@ class Message:
     output_tokens: int | None = None
     cost_usd: float | None = None
     prompt_version_id: str | None = None  # populated for generated assistant messages
+    cache_creation_5m_input_tokens: int | None = None
+    cache_creation_1h_input_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
 
 @dataclass(frozen=True)
 class Conversation:
@@ -78,6 +81,16 @@ class Buddy:
     created_at: datetime
     updated_at: datetime
     archived: bool = False
+
+@dataclass(frozen=True)
+class BuddyMemory:
+    buddy_id: str
+    memory_text: str
+    enabled: bool
+    suppress_injection: bool
+    watermark_created_at: str | None
+    watermark_message_id: str | None
+    updated_at: datetime
 
 @dataclass(frozen=True)
 class Prompt:
@@ -133,9 +146,9 @@ class TokenUsage:
     input_tokens: int
     output_tokens: int
     model: str
-    cache_creation_5m_input_tokens: int = 0
-    cache_creation_1h_input_tokens: int = 0
-    cache_read_input_tokens: int = 0
+    cache_creation_5m_input_tokens: int | None = None
+    cache_creation_1h_input_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
 
 @dataclass(frozen=True)
 class StreamChunk:
@@ -217,6 +230,9 @@ CREATE TABLE messages (
     output_tokens   INTEGER,
     cost_usd        REAL,
     prompt_version_id TEXT,
+    cache_creation_5m_input_tokens INTEGER,
+    cache_creation_1h_input_tokens INTEGER,
+    cache_read_input_tokens INTEGER,
     created_at      TEXT NOT NULL
 );
 CREATE INDEX idx_messages_conv_created ON messages(conversation_id, created_at);
@@ -234,6 +250,16 @@ CREATE TABLE providers (
 CREATE TABLE app_settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
+);
+
+CREATE TABLE buddy_memories (
+    buddy_id TEXT PRIMARY KEY REFERENCES buddies(id) ON DELETE CASCADE,
+    memory_text TEXT NOT NULL DEFAULT '',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    suppress_injection INTEGER NOT NULL DEFAULT 0,
+    watermark_created_at TEXT,
+    watermark_message_id TEXT,
+    updated_at TEXT NOT NULL
 );
 ```
 
@@ -271,6 +297,7 @@ current migrations:
 - `003_anthropic_opus_4_8.sql`
 - `004_conversation_assistant_name.sql`
 - `005_anthropic_fable_5.sql`
+- `006_buddy_memories_and_cache_usage.sql`
 
 ## storage layer contract
 
@@ -287,6 +314,8 @@ current migrations:
 - `list_messages(conversation_id) -> list[Message]`
 - `list_buddies(include_archived=False) -> list[Buddy]`
 - `get_buddy(id) -> Buddy`
+- `get_buddy_memory(buddy_id) -> BuddyMemory | None`
+- `messages_newer_than_watermark_for_buddy(buddy_id) -> list[Message]`
 - `buddy_exists(provider_id, model) -> bool` (includes archived buddies)
 - `create_prompt(...) -> Prompt`
 - `create_prompt_version(...) -> PromptVersion`
@@ -398,9 +427,9 @@ provider pricing pages even when the LiteLLM snapshot has rates.
 
 Anthropic cache usage fields are normalized into `TokenUsage` as
 `cache_creation_5m_input_tokens`, `cache_creation_1h_input_tokens`, and
-`cache_read_input_tokens`. The current storage schema persists only the existing
-message-level `input_tokens`, `output_tokens`, and `cost_usd`; cache token
-breakdowns are runtime-only cost inputs. Five-minute cache writes use 1.25x the
+`cache_read_input_tokens`. The storage schema persists the cache token
+breakdown on assistant messages. `NULL` means the provider did not report that
+token class; `0` means it reported zero. Five-minute cache writes use 1.25x the
 base input-token rate, one-hour cache writes use 2x the base input-token rate,
 and cache reads use 0.1x the base input-token rate.
 

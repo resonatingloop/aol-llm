@@ -95,6 +95,7 @@ def test_contracts_canonical_dataclasses_match_core_types() -> None:
         "Message",
         "Conversation",
         "Buddy",
+        "BuddyMemory",
         "Prompt",
         "PromptVersion",
         "ProviderConfig",
