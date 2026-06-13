@@ -11,8 +11,6 @@ from aol_llm.core.types import (
     Buddy,
     Conversation,
     Message,
-    PromptCacheControl,
-    PromptCacheTTL,
     ProviderConfig,
     ProviderKind,
 )
@@ -22,7 +20,10 @@ from aol_llm.providers.registry import build_provider
 from aol_llm.secrets import get_api_key
 from aol_llm.storage import db
 
-ProviderFactory = Callable[[ProviderConfig, str | None], Provider]
+PromptCacheTTL = Literal["5m", "1h"]
+ProviderFactory = Callable[
+    [ProviderConfig, str | None, PromptCacheTTL | None], Provider
+]
 ApiKeyGetter = Callable[[str], str | None]
 PROMPT_CACHE_SETTING = "anthropic_prompt_cache_enabled"
 PromptCacheMode = Literal["off", "5m", "1h"]
@@ -293,6 +294,7 @@ class ChatService:
         provider = self._provider_factory(
             provider_config,
             self._api_key_getter(provider_config.id),
+            self._prompt_cache_ttl(conversation),
         )
         system, prompt_version_id = self._resolve_system_prompt(conversation)
         assistant_text = ""
@@ -301,7 +303,6 @@ class ChatService:
             messages=messages,
             system=system,
             model=conversation.model,
-            prompt_cache=self._prompt_cache_control(conversation),
         ):
             if not chunk.done:
                 assistant_text += chunk.text
@@ -423,17 +424,16 @@ class ChatService:
             ),
         )
 
-    def _prompt_cache_control(
+    def _prompt_cache_ttl(
         self,
         conversation: Conversation,
-    ) -> PromptCacheControl | None:
+    ) -> PromptCacheTTL | None:
         if conversation.provider_id != "anthropic":
             return None
         mode = self.prompt_cache_mode()
         if mode == "off":
             return None
-        ttl: PromptCacheTTL = mode
-        return PromptCacheControl(ttl=ttl)
+        return mode
 
     def _default_export_dir(self) -> Path:
         if self._db_path is not None:

@@ -6,7 +6,6 @@ import pytest
 from aol_llm.core.errors import AuthError, NetworkError, RateLimitError
 from aol_llm.core.types import (
     Message,
-    PromptCacheControl,
     ProviderConfig,
     StreamChunk,
     TokenUsage,
@@ -32,9 +31,8 @@ class FakeProvider:
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
-        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
-        del messages, system, max_output_tokens, temperature, prompt_cache
+        del messages, system, max_output_tokens, temperature
         yield StreamChunk(text="hello", done=False)
         yield StreamChunk(
             text="",
@@ -55,9 +53,8 @@ class ErrorProvider:
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
-        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
-        del messages, system, model, max_output_tokens, temperature, prompt_cache
+        del messages, system, model, max_output_tokens, temperature
         raise self._error
         yield StreamChunk(text="", done=True)
 

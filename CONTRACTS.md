@@ -38,8 +38,6 @@ from typing import AsyncIterator, Literal, Protocol
 Role = Literal["user", "assistant"]
 ProviderKind = Literal["anthropic", "openai_compatible"]
 PromptStatus = Literal["draft", "canonical", "archived"]
-PromptCacheType = Literal["ephemeral"]
-PromptCacheTTL = Literal["5m", "1h"]
 
 @dataclass(frozen=True)
 class Message:
@@ -131,11 +129,6 @@ class ProviderConfig:
     available_models: list[str]
 
 @dataclass(frozen=True)
-class PromptCacheControl:
-    type: PromptCacheType = "ephemeral"
-    ttl: PromptCacheTTL = "5m"
-
-@dataclass(frozen=True)
 class TokenUsage:
     input_tokens: int
     output_tokens: int
@@ -165,7 +158,6 @@ class Provider(Protocol):
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
-        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
         ...
 ```
@@ -177,8 +169,8 @@ contract guarantees a Provider must satisfy:
 - on error, raises a subclass of `ProviderError` (no silent failure, no None returns)
 - never mutates the input `messages` list
 - never returns provider-native types (no `anthropic.MessageStream` leaking upward)
-- honors `PromptCacheControl` only when the provider supports it. unsupported
-  providers ignore it rather than changing request semantics.
+- keeps provider-specific controls out of the shared interface. Anthropic cache
+  marker emission is Anthropic-adapter-internal.
 
 ## error taxonomy
 
@@ -326,8 +318,7 @@ Claude prompt caching is controlled by `app_settings` key
 `anthropic_prompt_cache_enabled`. Stored values are `off`, `5m`, or `1h`; legacy
 values `0` and `1` read as `off` and `1h`. The Textual slash command
 `/cache on|1h|5m|off|status` updates or reads that setting. `/cache on` is an
-alias for `/cache 1h`. When enabled for an Anthropic conversation, `ChatService`
-passes `PromptCacheControl(type="ephemeral", ttl=<mode>)` to the provider. The
+alias for `/cache 1h`. When enabled for an Anthropic conversation, the
 Anthropic adapter sends top-level automatic cache control:
 
 - `5m`: `cache_control: {"type": "ephemeral"}`

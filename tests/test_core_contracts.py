@@ -11,7 +11,6 @@ from aol_llm.core.types import (
     Conversation,
     Message,
     Prompt,
-    PromptCacheControl,
     PromptVersion,
     ProviderConfig,
     StreamChunk,
@@ -114,10 +113,8 @@ def test_provider_config_and_stream_chunk_shapes() -> None:
     )
     usage = TokenUsage(input_tokens=10, output_tokens=20, model=config.default_model)
     chunk = StreamChunk(text="", done=True, usage=usage)
-    cache_control = PromptCacheControl()
 
     assert config.kind == "anthropic"
-    assert cache_control.type == "ephemeral"
     assert chunk.done is True
     assert chunk.usage == usage
 

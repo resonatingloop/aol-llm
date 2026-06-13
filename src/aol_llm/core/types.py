@@ -7,8 +7,6 @@ from typing import Literal
 Role = Literal["user", "assistant"]
 ProviderKind = Literal["anthropic", "openai_compatible"]
 PromptStatus = Literal["draft", "canonical", "archived"]
-PromptCacheType = Literal["ephemeral"]
-PromptCacheTTL = Literal["5m", "1h"]
 
 
 @dataclass(frozen=True)
@@ -104,12 +102,6 @@ class ProviderConfig:
     keyring_service: str | None
     default_model: str
     available_models: list[str]
-
-
-@dataclass(frozen=True)
-class PromptCacheControl:
-    type: PromptCacheType = "ephemeral"
-    ttl: PromptCacheTTL = "5m"
 
 
 @dataclass(frozen=True)

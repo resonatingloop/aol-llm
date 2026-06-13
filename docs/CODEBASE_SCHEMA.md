@@ -38,7 +38,6 @@ src/aol_llm/core/types.py
   Prompt
   PromptVersion
   ProviderConfig
-  PromptCacheControl
   TokenUsage
   StreamChunk
 
@@ -65,11 +64,11 @@ src/aol_llm/providers/base.py
 ```
 
 Provider adapters must yield normalized `StreamChunk` objects and raise
-`ProviderError` subclasses at the provider boundary. `PromptCacheControl` is
-currently used for Anthropic automatic prompt caching with `5m` or `1h` TTL.
-Cache creation/read token counts are normalized in `TokenUsage` for cost
-calculation; message storage still persists only input tokens, output tokens,
-and total cost.
+`ProviderError` subclasses at the provider boundary. Anthropic automatic prompt
+caching with `5m` or `1h` TTL is configured inside the Anthropic adapter, not
+through the shared provider protocol. Cache creation/read token counts are
+normalized in `TokenUsage` for cost calculation; message storage still persists
+only input tokens, output tokens, and total cost.
 
 Stored message roles remain `user` and `assistant`. UI-facing reply names are
 presentation metadata resolved from the conversation override or buddy name.

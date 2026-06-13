@@ -1,13 +1,13 @@
 """Anthropic Messages API provider adapter."""
 
 from collections.abc import AsyncIterator
+from typing import Literal
 
 import httpx
 
 from aol_llm.core.errors import AuthError, ContentFilterError, UnknownProviderError
 from aol_llm.core.types import (
     Message,
-    PromptCacheControl,
     ProviderConfig,
     StreamChunk,
     TokenUsage,
@@ -20,12 +20,19 @@ from aol_llm.providers._http import (
 
 ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
+AnthropicCacheTTL = Literal["5m", "1h"]
 
 
 class AnthropicProvider:
-    def __init__(self, config: ProviderConfig, api_key: str | None) -> None:
+    def __init__(
+        self,
+        config: ProviderConfig,
+        api_key: str | None,
+        prompt_cache_ttl: AnthropicCacheTTL | None = None,
+    ) -> None:
         self.config = config
         self._api_key = api_key
+        self._prompt_cache_ttl = prompt_cache_ttl
 
     async def stream(
         self,
@@ -34,7 +41,6 @@ class AnthropicProvider:
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
-        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
         if not self._api_key:
             raise AuthError("missing Anthropic API key")
@@ -52,10 +58,10 @@ class AnthropicProvider:
             payload["thinking"] = {"type": "adaptive"}
         if not _rejects_sampling_parameters(model):
             payload["temperature"] = temperature
-        if prompt_cache is not None:
-            cache_control: dict[str, str] = {"type": prompt_cache.type}
-            if prompt_cache.ttl == "1h":
-                cache_control["ttl"] = prompt_cache.ttl
+        if self._prompt_cache_ttl is not None:
+            cache_control = {"type": "ephemeral"}
+            if self._prompt_cache_ttl == "1h":
+                cache_control["ttl"] = self._prompt_cache_ttl
             payload["cache_control"] = cache_control
         if system is not None:
             payload["system"] = system

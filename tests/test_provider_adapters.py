@@ -12,7 +12,7 @@ from aol_llm.core.errors import (
     RateLimitError,
     UnknownProviderError,
 )
-from aol_llm.core.types import Message, PromptCacheControl, ProviderConfig, StreamChunk
+from aol_llm.core.types import Message, ProviderConfig, StreamChunk
 from aol_llm.providers.anthropic import ANTHROPIC_MESSAGES_URL, AnthropicProvider
 from aol_llm.providers.base import Provider
 from aol_llm.providers.openai_compat import OpenAICompatibleProvider
@@ -171,17 +171,13 @@ async def test_anthropic_provider_adds_5m_prompt_cache_control_when_enabled() ->
             ),
         )
     )
-    provider = AnthropicProvider(config=anthropic_config(), api_key="test-key")
+    provider = AnthropicProvider(
+        config=anthropic_config(),
+        api_key="test-key",
+        prompt_cache_ttl="5m",
+    )
 
-    chunks = [
-        chunk
-        async for chunk in provider.stream(
-            messages=[make_message()],
-            system="You are concise.",
-            model=provider.config.default_model,
-            prompt_cache=PromptCacheControl(),
-        )
-    ]
+    chunks = await collect(provider)
 
     payload = json.loads(route.calls.last.request.content)
     assert payload["cache_control"] == {"type": "ephemeral"}
@@ -216,17 +212,13 @@ async def test_anthropic_provider_adds_1h_prompt_cache_control_and_usage() -> No
             ),
         )
     )
-    provider = AnthropicProvider(config=anthropic_config(), api_key="test-key")
+    provider = AnthropicProvider(
+        config=anthropic_config(),
+        api_key="test-key",
+        prompt_cache_ttl="1h",
+    )
 
-    chunks = [
-        chunk
-        async for chunk in provider.stream(
-            messages=[make_message()],
-            system="You are concise.",
-            model=provider.config.default_model,
-            prompt_cache=PromptCacheControl(ttl="1h"),
-        )
-    ]
+    chunks = await collect(provider)
 
     payload = json.loads(route.calls.last.request.content)
     assert payload["cache_control"] == {"type": "ephemeral", "ttl": "1h"}

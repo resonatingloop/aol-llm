@@ -8,7 +8,6 @@ from aol_llm.config import AppConfig, ProviderSettings, UIConfig, default_config
 from aol_llm.core.pricing import ModelPricing
 from aol_llm.core.types import (
     Message,
-    PromptCacheControl,
     ProviderConfig,
     StreamChunk,
     TokenUsage,
@@ -31,9 +30,8 @@ class FakeProvider:
         model: str,
         max_output_tokens: int = 4096,
         temperature: float = 1.0,
-        prompt_cache: PromptCacheControl | None = None,
     ) -> AsyncIterator[StreamChunk]:
-        del max_output_tokens, temperature, prompt_cache
+        del max_output_tokens, temperature
         assert self.api_key == "secret"
         assert system == "Be concise."
         assert [message.role for message in messages] == ["user"]
@@ -54,7 +52,12 @@ def app_config() -> AppConfig:
     )
 
 
-def provider_factory(config: ProviderConfig, api_key: str | None) -> Provider:
+def provider_factory(
+    config: ProviderConfig,
+    api_key: str | None,
+    prompt_cache_ttl: str | None = None,
+) -> Provider:
+    del prompt_cache_ttl
     return FakeProvider(config, api_key)
 
 
@@ -354,7 +357,7 @@ async def test_send_message_passes_prompt_cache_for_anthropic(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "chat.db"
-    seen_cache: list[PromptCacheControl | None] = []
+    seen_cache_ttls: list[str | None] = []
 
     class CacheProvider:
         config: ProviderConfig
@@ -370,10 +373,8 @@ async def test_send_message_passes_prompt_cache_for_anthropic(
             model: str,
             max_output_tokens: int = 4096,
             temperature: float = 1.0,
-            prompt_cache: PromptCacheControl | None = None,
         ) -> AsyncIterator[StreamChunk]:
             del messages, system, max_output_tokens, temperature
-            seen_cache.append(prompt_cache)
             yield StreamChunk(text="ok", done=False)
             yield StreamChunk(
                 text="",
@@ -384,7 +385,9 @@ async def test_send_message_passes_prompt_cache_for_anthropic(
     def cache_provider_factory(
         config: ProviderConfig,
         api_key: str | None,
+        prompt_cache_ttl: str | None = None,
     ) -> Provider:
+        seen_cache_ttls.append(prompt_cache_ttl)
         return CacheProvider(config, api_key)
 
     service = ChatService(
@@ -399,7 +402,7 @@ async def test_send_message_passes_prompt_cache_for_anthropic(
 
     _ = [event async for event in service.send_message(conversation.id, "hello")]
 
-    assert seen_cache == [PromptCacheControl(ttl="1h")]
+    assert seen_cache_ttls == ["1h"]
 
 
 def test_update_system_prompt_sets_and_clears_prompt(tmp_path: Path) -> None:
@@ -439,9 +442,8 @@ async def test_legacy_system_prompt_fallback_when_no_prompt_version(
             model: str,
             max_output_tokens: int = 4096,
             temperature: float = 1.0,
-            prompt_cache: PromptCacheControl | None = None,
         ) -> AsyncIterator[StreamChunk]:
-            del messages, max_output_tokens, temperature, prompt_cache
+            del messages, max_output_tokens, temperature
             seen_systems.append(system)
             yield StreamChunk(text="ok", done=False)
             yield StreamChunk(
@@ -453,7 +455,9 @@ async def test_legacy_system_prompt_fallback_when_no_prompt_version(
     def legacy_provider_factory(
         config: ProviderConfig,
         api_key: str | None,
+        prompt_cache_ttl: str | None = None,
     ) -> Provider:
+        del prompt_cache_ttl
         return LegacyProvider(config, api_key)
 
     service = ChatService(
@@ -505,9 +509,8 @@ async def test_retry_last_response_replaces_last_assistant(tmp_path: Path) -> No
             model: str,
             max_output_tokens: int = 4096,
             temperature: float = 1.0,
-            prompt_cache: PromptCacheControl | None = None,
         ) -> AsyncIterator[StreamChunk]:
-            del system, max_output_tokens, temperature, prompt_cache
+            del system, max_output_tokens, temperature
             calls.append([message.content for message in messages])
             yield StreamChunk(text="new", done=False)
             yield StreamChunk(
@@ -519,7 +522,9 @@ async def test_retry_last_response_replaces_last_assistant(tmp_path: Path) -> No
     def retry_provider_factory(
         config: ProviderConfig,
         api_key: str | None,
+        prompt_cache_ttl: str | None = None,
     ) -> Provider:
+        del prompt_cache_ttl
         return RetryProvider(config, api_key)
 
     service = ChatService(
