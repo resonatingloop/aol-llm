@@ -200,6 +200,100 @@ def test_buddy_memory_is_per_buddy(db_path: Path) -> None:
     assert db.get_buddy_memory(second.id, db_path) is None
 
 
+def test_upsert_buddy_memory_updates_existing_row(db_path: Path) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-a", db_path)
+
+    created = db.upsert_buddy_memory(
+        buddy.id,
+        "Initial memory.",
+        path=db_path,
+        watermark_created_at="2026-06-13T00:00:00+00:00",
+        watermark_message_id="message-a",
+    )
+    updated = db.upsert_buddy_memory(
+        buddy.id,
+        "Updated memory.",
+        path=db_path,
+        enabled=False,
+        suppress_injection=True,
+        watermark_created_at="2026-06-13T00:00:01+00:00",
+        watermark_message_id="message-b",
+    )
+
+    assert created.buddy_id == buddy.id
+    assert updated.buddy_id == buddy.id
+    assert updated.memory_text == "Updated memory."
+    assert updated.enabled is False
+    assert updated.suppress_injection is True
+    assert updated.watermark_created_at == "2026-06-13T00:00:01+00:00"
+    assert updated.watermark_message_id == "message-b"
+
+
+def test_buddy_memory_toggles_preserve_text_and_watermark(db_path: Path) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-a", db_path)
+    db.upsert_buddy_memory(
+        buddy.id,
+        "Persistent memory.",
+        path=db_path,
+        watermark_created_at="2026-06-13T00:00:00+00:00",
+        watermark_message_id="message-a",
+    )
+
+    disabled = db.set_buddy_memory_enabled(buddy.id, False, db_path)
+    suppressed = db.set_buddy_memory_suppressed(buddy.id, True, db_path)
+
+    assert disabled.memory_text == "Persistent memory."
+    assert disabled.enabled is False
+    assert disabled.watermark_message_id == "message-a"
+    assert suppressed.memory_text == "Persistent memory."
+    assert suppressed.enabled is False
+    assert suppressed.suppress_injection is True
+    assert suppressed.watermark_created_at == "2026-06-13T00:00:00+00:00"
+    assert suppressed.watermark_message_id == "message-a"
+
+
+def test_buddy_memory_toggles_create_empty_row_when_missing(db_path: Path) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-a", db_path)
+
+    disabled = db.set_buddy_memory_enabled(buddy.id, False, db_path)
+    suppressed = db.set_buddy_memory_suppressed(buddy.id, True, db_path)
+
+    assert disabled.memory_text == ""
+    assert disabled.enabled is False
+    assert disabled.suppress_injection is False
+    assert suppressed.memory_text == ""
+    assert suppressed.enabled is False
+    assert suppressed.suppress_injection is True
+
+
+def test_clear_buddy_memory_clears_text_watermark_and_suppression(
+    db_path: Path,
+) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-a", db_path)
+    db.upsert_buddy_memory(
+        buddy.id,
+        "Persistent memory.",
+        path=db_path,
+        enabled=False,
+        suppress_injection=True,
+        watermark_created_at="2026-06-13T00:00:00+00:00",
+        watermark_message_id="message-a",
+    )
+
+    cleared = db.clear_buddy_memory(buddy.id, db_path)
+
+    assert cleared.memory_text == ""
+    assert cleared.enabled is False
+    assert cleared.suppress_injection is False
+    assert cleared.watermark_created_at is None
+    assert cleared.watermark_message_id is None
+
+
+def test_buddy_memory_helpers_enforce_buddy_foreign_key(db_path: Path) -> None:
+    with pytest.raises(sqlite3.IntegrityError):
+        db.upsert_buddy_memory("missing", "nope", path=db_path)
+
+
 def test_messages_newer_than_watermark_for_buddy_uses_total_order(
     db_path: Path,
 ) -> None:

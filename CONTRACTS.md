@@ -315,6 +315,10 @@ current migrations:
 - `list_buddies(include_archived=False) -> list[Buddy]`
 - `get_buddy(id) -> Buddy`
 - `get_buddy_memory(buddy_id) -> BuddyMemory | None`
+- `upsert_buddy_memory(buddy_id, memory_text, **fields) -> BuddyMemory`
+- `set_buddy_memory_enabled(buddy_id, enabled) -> BuddyMemory`
+- `set_buddy_memory_suppressed(buddy_id, suppressed) -> BuddyMemory`
+- `clear_buddy_memory(buddy_id) -> BuddyMemory`
 - `messages_newer_than_watermark_for_buddy(buddy_id) -> list[Message]`
 - `buddy_exists(provider_id, model) -> bool` (includes archived buddies)
 - `create_prompt(...) -> Prompt`
@@ -356,6 +360,13 @@ placeholder, or blank section. The flattened system text for
 OpenAI-compatible providers is the ordered system blocks joined by blank lines.
 Changing the a-way text, memory text, or memory block wrapper changes the cached
 prefix.
+
+`ChatService` wires prompt assembly into every streamed provider send. For a
+given `ChatService` instance, the buddy memory row is loaded once per
+conversation and reused for that conversation so manual memory edits do not
+change the prefix mid-conversation. The a-way/system prompt is still resolved on
+each send, so editing a conversation's a-way message takes effect immediately
+and intentionally changes the cached prefix.
 
 Claude prompt caching is controlled by `app_settings` key
 `anthropic_prompt_cache_enabled`. Stored values are `off`, `5m`, or `1h`; legacy

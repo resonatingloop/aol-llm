@@ -9,12 +9,14 @@ from aol_llm.config import AppConfig, load_config
 from aol_llm.core.pricing import ModelPricing, estimate_cost_usd, load_rate_card
 from aol_llm.core.types import (
     Buddy,
+    BuddyMemory,
     Conversation,
     Message,
     ProviderConfig,
     ProviderKind,
 )
 from aol_llm.export import write_export
+from aol_llm.prompt_assembly import assemble_prompt
 from aol_llm.providers.base import Provider
 from aol_llm.providers.registry import build_provider
 from aol_llm.secrets import get_api_key
@@ -75,6 +77,7 @@ class ChatService:
         self._provider_factory = provider_factory
         self._api_key_getter = api_key_getter
         self._rate_card = load_rate_card() if rate_card is None else rate_card
+        self._conversation_memories: dict[str, BuddyMemory | None] = {}
 
     def init(self) -> None:
         db.init_db(self._db_path)
@@ -296,7 +299,7 @@ class ChatService:
             self._api_key_getter(provider_config.id),
             self._prompt_cache_ttl(conversation),
         )
-        system, prompt_version_id = self._resolve_system_prompt(conversation)
+        system, prompt_version_id = self._assembled_system_prompt(conversation)
         assistant_text = ""
 
         async for chunk in provider.stream(
@@ -396,6 +399,27 @@ class ChatService:
                     return version.core or None, version.id
 
         return conversation.system_prompt, None
+
+    def _assembled_system_prompt(
+        self,
+        conversation: Conversation,
+    ) -> tuple[str | None, str | None]:
+        system, prompt_version_id = self._resolve_system_prompt(conversation)
+        memory = self._conversation_memory(conversation)
+        return assemble_prompt(system, memory).system_text, prompt_version_id
+
+    def _conversation_memory(
+        self,
+        conversation: Conversation,
+    ) -> BuddyMemory | None:
+        if conversation.id in self._conversation_memories:
+            return self._conversation_memories[conversation.id]
+        if conversation.buddy_id is None:
+            memory = None
+        else:
+            memory = db.get_buddy_memory(conversation.buddy_id, self._db_path)
+        self._conversation_memories[conversation.id] = memory
+        return memory
 
     def _resolve_reply_name(self, conversation: Conversation) -> str:
         if conversation.assistant_name is not None:

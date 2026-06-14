@@ -266,6 +266,113 @@ def get_buddy_memory(buddy_id: str, path: Path | None = None) -> BuddyMemory | N
     return None if row is None else buddy_memory_from_row(row)
 
 
+def upsert_buddy_memory(
+    buddy_id: str,
+    memory_text: str,
+    path: Path | None = None,
+    enabled: bool = True,
+    suppress_injection: bool = False,
+    watermark_created_at: str | None = None,
+    watermark_message_id: str | None = None,
+) -> BuddyMemory:
+    now = format_dt(_now())
+    with get_connection(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO buddy_memories
+                (buddy_id, memory_text, enabled, suppress_injection,
+                 watermark_created_at, watermark_message_id, updated_at)
+            VALUES
+                (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(buddy_id) DO UPDATE SET
+                memory_text = excluded.memory_text,
+                enabled = excluded.enabled,
+                suppress_injection = excluded.suppress_injection,
+                watermark_created_at = excluded.watermark_created_at,
+                watermark_message_id = excluded.watermark_message_id,
+                updated_at = excluded.updated_at
+            """,
+            (
+                buddy_id,
+                memory_text,
+                int(enabled),
+                int(suppress_injection),
+                watermark_created_at,
+                watermark_message_id,
+                now,
+            ),
+        )
+    memory = get_buddy_memory(buddy_id, path)
+    assert memory is not None
+    return memory
+
+
+def set_buddy_memory_enabled(
+    buddy_id: str,
+    enabled: bool,
+    path: Path | None = None,
+) -> BuddyMemory:
+    with get_connection(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO buddy_memories (buddy_id, updated_at, enabled)
+            VALUES (?, ?, ?)
+            ON CONFLICT(buddy_id) DO UPDATE SET
+                enabled = excluded.enabled,
+                updated_at = excluded.updated_at
+            """,
+            (buddy_id, format_dt(_now()), int(enabled)),
+        )
+    memory = get_buddy_memory(buddy_id, path)
+    assert memory is not None
+    return memory
+
+
+def set_buddy_memory_suppressed(
+    buddy_id: str,
+    suppressed: bool,
+    path: Path | None = None,
+) -> BuddyMemory:
+    with get_connection(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO buddy_memories
+                (buddy_id, updated_at, suppress_injection)
+            VALUES
+                (?, ?, ?)
+            ON CONFLICT(buddy_id) DO UPDATE SET
+                suppress_injection = excluded.suppress_injection,
+                updated_at = excluded.updated_at
+            """,
+            (buddy_id, format_dt(_now()), int(suppressed)),
+        )
+    memory = get_buddy_memory(buddy_id, path)
+    assert memory is not None
+    return memory
+
+
+def clear_buddy_memory(buddy_id: str, path: Path | None = None) -> BuddyMemory:
+    with get_connection(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO buddy_memories
+                (buddy_id, memory_text, suppress_injection, updated_at)
+            VALUES
+                (?, '', 0, ?)
+            ON CONFLICT(buddy_id) DO UPDATE SET
+                memory_text = '',
+                suppress_injection = 0,
+                watermark_created_at = NULL,
+                watermark_message_id = NULL,
+                updated_at = excluded.updated_at
+            """,
+            (buddy_id, format_dt(_now())),
+        )
+    memory = get_buddy_memory(buddy_id, path)
+    assert memory is not None
+    return memory
+
+
 def messages_newer_than_watermark_for_buddy(
     buddy_id: str,
     path: Path | None = None,

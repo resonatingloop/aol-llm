@@ -80,7 +80,9 @@ Stored message roles remain `user` and `assistant`. UI-facing reply names are
 presentation metadata resolved from the conversation override or buddy name.
 Prompt assembly produces stable system blocks in a-way then memory order and
 flattens them to plain system text for provider adapters that do not accept
-structured system blocks.
+structured system blocks. `ChatService` freezes the buddy memory row per
+conversation for its own process lifetime; a-way prompt resolution remains
+per-send.
 
 ## Config And Secrets
 
@@ -161,6 +163,7 @@ src/aol_llm/storage/rows.py
 
 src/aol_llm/storage/db.py
   repository functions over sqlite3
+  buddy memory read/write helpers
 ```
 
 Primary tables:
@@ -200,6 +203,7 @@ init
 
 send_message
   add user message
+  assemble a-way plus frozen buddy memory into system prompt
   stream provider response
   persist assistant message with usage, cost, model, prompt provenance
   pass prompt-cache policy to Anthropic when enabled in app_settings

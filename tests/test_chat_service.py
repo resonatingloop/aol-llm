@@ -12,6 +12,7 @@ from aol_llm.core.types import (
     StreamChunk,
     TokenUsage,
 )
+from aol_llm.prompt_assembly import MEMORY_BLOCK_HEADING
 from aol_llm.providers.base import Provider
 from aol_llm.storage import db
 
@@ -554,6 +555,276 @@ async def test_legacy_system_prompt_fallback_when_no_prompt_version(
     _ = [event async for event in service.send_message(conversation.id, "hello")]
 
     assert seen_systems == ["Legacy prompt."]
+
+
+@pytest.mark.asyncio
+async def test_send_message_injects_buddy_memory_after_a_way(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chat.db"
+    seen_systems: list[str | None] = []
+
+    class MemoryProvider:
+        config: ProviderConfig
+
+        def __init__(self, config: ProviderConfig, api_key: str | None) -> None:
+            self.config = config
+            self.api_key = api_key
+
+        async def stream(
+            self,
+            messages: list[Message],
+            system: str | None,
+            model: str,
+            max_output_tokens: int = 4096,
+            temperature: float = 1.0,
+        ) -> AsyncIterator[StreamChunk]:
+            del messages, max_output_tokens, temperature
+            seen_systems.append(system)
+            yield StreamChunk(text="ok", done=False)
+            yield StreamChunk(
+                text="",
+                done=True,
+                usage=TokenUsage(input_tokens=1, output_tokens=1, model=model),
+            )
+
+    def memory_provider_factory(
+        config: ProviderConfig,
+        api_key: str | None,
+        prompt_cache_ttl: str | None = None,
+    ) -> Provider:
+        del prompt_cache_ttl
+        return MemoryProvider(config, api_key)
+
+    service = ChatService(
+        db_path=db_path,
+        app_config=app_config(),
+        provider_factory=memory_provider_factory,
+        api_key_getter=lambda provider_id: None,
+    )
+    service.init()
+    conversation = service.create_conversation()
+    conversation = service.update_system_prompt(conversation.id, "Be concise.")
+    assert conversation.buddy_id is not None
+    db.upsert_buddy_memory(
+        conversation.buddy_id,
+        "Maria and this buddy are building prompt memory.",
+        path=db_path,
+    )
+
+    _ = [event async for event in service.send_message(conversation.id, "hello")]
+
+    assert len(seen_systems) == 1
+    system = seen_systems[0]
+    assert system is not None
+    assert system.index("Be concise.") < system.index(MEMORY_BLOCK_HEADING)
+    assert "Maria and this buddy are building prompt memory." in system
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("memory_text", "enabled", "suppressed"),
+    [
+        ("Persistent memory.", False, False),
+        ("  \n", True, False),
+        ("Persistent memory.", True, True),
+    ],
+)
+async def test_send_message_skips_non_injectable_memory(
+    tmp_path: Path,
+    memory_text: str,
+    enabled: bool,
+    suppressed: bool,
+) -> None:
+    db_path = tmp_path / "chat.db"
+    seen_systems: list[str | None] = []
+
+    class MemoryProvider:
+        config: ProviderConfig
+
+        def __init__(self, config: ProviderConfig, api_key: str | None) -> None:
+            self.config = config
+            self.api_key = api_key
+
+        async def stream(
+            self,
+            messages: list[Message],
+            system: str | None,
+            model: str,
+            max_output_tokens: int = 4096,
+            temperature: float = 1.0,
+        ) -> AsyncIterator[StreamChunk]:
+            del messages, max_output_tokens, temperature
+            seen_systems.append(system)
+            yield StreamChunk(text="ok", done=False)
+            yield StreamChunk(
+                text="",
+                done=True,
+                usage=TokenUsage(input_tokens=1, output_tokens=1, model=model),
+            )
+
+    def memory_provider_factory(
+        config: ProviderConfig,
+        api_key: str | None,
+        prompt_cache_ttl: str | None = None,
+    ) -> Provider:
+        del prompt_cache_ttl
+        return MemoryProvider(config, api_key)
+
+    service = ChatService(
+        db_path=db_path,
+        app_config=app_config(),
+        provider_factory=memory_provider_factory,
+        api_key_getter=lambda provider_id: None,
+    )
+    service.init()
+    conversation = service.create_conversation()
+    conversation = service.update_system_prompt(conversation.id, "Be concise.")
+    assert conversation.buddy_id is not None
+    db.upsert_buddy_memory(
+        conversation.buddy_id,
+        memory_text,
+        path=db_path,
+        enabled=enabled,
+        suppress_injection=suppressed,
+    )
+
+    _ = [event async for event in service.send_message(conversation.id, "hello")]
+
+    assert seen_systems == ["Be concise."]
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_send_receives_flattened_memory_prefix(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chat.db"
+    seen_systems: list[str | None] = []
+
+    class OpenAIProvider:
+        config: ProviderConfig
+
+        def __init__(self, config: ProviderConfig, api_key: str | None) -> None:
+            self.config = config
+            self.api_key = api_key
+
+        async def stream(
+            self,
+            messages: list[Message],
+            system: str | None,
+            model: str,
+            max_output_tokens: int = 4096,
+            temperature: float = 1.0,
+        ) -> AsyncIterator[StreamChunk]:
+            del messages, max_output_tokens, temperature
+            seen_systems.append(system)
+            yield StreamChunk(text="ok", done=False)
+            yield StreamChunk(
+                text="",
+                done=True,
+                usage=TokenUsage(input_tokens=1, output_tokens=1, model=model),
+            )
+
+    def openai_provider_factory(
+        config: ProviderConfig,
+        api_key: str | None,
+        prompt_cache_ttl: str | None = None,
+    ) -> Provider:
+        del prompt_cache_ttl
+        return OpenAIProvider(config, api_key)
+
+    service = ChatService(
+        db_path=db_path,
+        app_config=AppConfig(
+            ui=UIConfig(default_provider="openai"),
+            providers={
+                "openai": ProviderSettings(
+                    default_model="gpt-test",
+                    base_url="https://api.openai.test/v1",
+                )
+            },
+        ),
+        provider_factory=openai_provider_factory,
+        api_key_getter=lambda provider_id: "secret",
+    )
+    service.init()
+    conversation = service.create_conversation()
+    conversation = service.update_system_prompt(conversation.id, "Be concise.")
+    assert conversation.buddy_id is not None
+    db.upsert_buddy_memory(
+        conversation.buddy_id,
+        "Remember the atlas work.",
+        path=db_path,
+    )
+
+    _ = [event async for event in service.send_message(conversation.id, "hello")]
+
+    system = seen_systems[0]
+    assert system is not None
+    assert system == "\n\n".join(system.split("\n\n"))
+    assert system.index("Be concise.") < system.index(MEMORY_BLOCK_HEADING)
+    assert "Remember the atlas work." in system
+
+
+@pytest.mark.asyncio
+async def test_memory_is_frozen_for_conversation_within_service_instance(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chat.db"
+    seen_systems: list[str | None] = []
+
+    class MemoryProvider:
+        config: ProviderConfig
+
+        def __init__(self, config: ProviderConfig, api_key: str | None) -> None:
+            self.config = config
+            self.api_key = api_key
+
+        async def stream(
+            self,
+            messages: list[Message],
+            system: str | None,
+            model: str,
+            max_output_tokens: int = 4096,
+            temperature: float = 1.0,
+        ) -> AsyncIterator[StreamChunk]:
+            del messages, max_output_tokens, temperature
+            seen_systems.append(system)
+            yield StreamChunk(text="ok", done=False)
+            yield StreamChunk(
+                text="",
+                done=True,
+                usage=TokenUsage(input_tokens=1, output_tokens=1, model=model),
+            )
+
+    def memory_provider_factory(
+        config: ProviderConfig,
+        api_key: str | None,
+        prompt_cache_ttl: str | None = None,
+    ) -> Provider:
+        del prompt_cache_ttl
+        return MemoryProvider(config, api_key)
+
+    service = ChatService(
+        db_path=db_path,
+        app_config=app_config(),
+        provider_factory=memory_provider_factory,
+        api_key_getter=lambda provider_id: None,
+    )
+    service.init()
+    conversation = service.create_conversation()
+    conversation = service.update_system_prompt(conversation.id, "Be concise.")
+    assert conversation.buddy_id is not None
+    db.upsert_buddy_memory(conversation.buddy_id, "First memory.", path=db_path)
+
+    _ = [event async for event in service.send_message(conversation.id, "hello")]
+    db.upsert_buddy_memory(conversation.buddy_id, "Second memory.", path=db_path)
+    _ = [event async for event in service.send_message(conversation.id, "again")]
+
+    assert len(seen_systems) == 2
+    assert "First memory." in (seen_systems[0] or "")
+    assert "First memory." in (seen_systems[1] or "")
+    assert "Second memory." not in (seen_systems[1] or "")
 
 
 def test_delete_conversation_removes_chat(tmp_path: Path) -> None:
