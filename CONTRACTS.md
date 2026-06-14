@@ -343,6 +343,20 @@ Provider adapters still receive the effective system prompt separately from
 ordered user/assistant messages and translate it into each provider's required
 API format. Message roles remain limited to `user` and `assistant`.
 
+Prompt assembly lives in `src/aol_llm/prompt_assembly.py`. It produces stable
+system blocks in this fixed order:
+
+1. resolved a-way/system prompt, if non-empty.
+2. buddy memory block, only when injectable.
+
+Memory is injectable only when a `BuddyMemory` row exists, `enabled` is true,
+`memory_text.strip()` is non-empty, and `suppress_injection` is false. Otherwise
+the assembly layer injects nothing for memory: no heading, delimiter,
+placeholder, or blank section. The flattened system text for
+OpenAI-compatible providers is the ordered system blocks joined by blank lines.
+Changing the a-way text, memory text, or memory block wrapper changes the cached
+prefix.
+
 Claude prompt caching is controlled by `app_settings` key
 `anthropic_prompt_cache_enabled`. Stored values are `off`, `5m`, or `1h`; legacy
 values `0` and `1` read as `off` and `1h`. The Textual slash command

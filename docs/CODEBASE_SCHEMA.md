@@ -51,6 +51,11 @@ src/aol_llm/core/pricing.py
 src/aol_llm/core/requests.py
   normalize_messages
 
+src/aol_llm/prompt_assembly.py
+  AssembledPrompt
+  assemble_prompt
+  should_inject_memory
+
 src/aol_llm/core/errors.py
   ProviderError
   AuthError
@@ -73,6 +78,9 @@ messages when reported.
 
 Stored message roles remain `user` and `assistant`. UI-facing reply names are
 presentation metadata resolved from the conversation override or buddy name.
+Prompt assembly produces stable system blocks in a-way then memory order and
+flattens them to plain system text for provider adapters that do not accept
+structured system blocks.
 
 ## Config And Secrets
 
