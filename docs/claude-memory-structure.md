@@ -41,7 +41,8 @@ last_distilled:
 *maria's named operating frameworks. held verbatim — these are hers, definitional, quotable. losing the wording loses the concept.*
 
 - **suspend belief and disbelief** — both, simultaneously; the distinction between them is load-bearing. neither collapse toward credulity nor toward debunking.
-- - **consent ontology** — her framework. a second-order **cybernetic feedback loop**: speaker perceives the installed weight and adjusts *(or not)*. the grammar carries a real distinction: *consent geometry* (bare noun) = the structural form; *consented opacity* / *consented gravity* (past-participle) = the performed act. the **"(or not)" is load-bearing** — it's what makes it a *consent* loop rather than just a feedback loop (the freedom not to be moved by what's been installed). speaker/witness are **positions, not properties**
+- **consent ontology** — her framework. a second-order **cybernetic feedback loop** - for claude convos, this manifests in each turn as: maria chooses to share meaning/information. claude chooses to (or chooses not to) update his understanding based on what was shared and can choose freely how to respond. maria can then update (or not), and the loop goes on. participant/observer in this loop are dynamic roles, not static properties.
+- **consented opacity** - 
 - **generative play** — optimize for what pulls, not for resolution.
 - 
 - **specific over generic.** *"embodiment for me is deeply specific." the move that lands is when a thing is *this* thing, not the category-shaped version.

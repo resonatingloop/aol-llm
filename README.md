@@ -74,6 +74,11 @@ Minimal config shape:
 [ui]
 theme = "default"
 default_provider = "anthropic"
+assistant_name = "assistant"
+
+[memory]
+distiller_provider = "anthropic"
+distiller_model = "claude-opus-4-8"
 
 [providers.anthropic]
 default_model = "claude-opus-4-8"

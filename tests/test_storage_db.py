@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from aol_llm.core.types import ProviderConfig
+from aol_llm.core.types import ProviderConfig, TokenUsage
 from aol_llm.storage import db
 
 
@@ -30,6 +30,7 @@ def test_init_db_applies_migrations_idempotently(db_path: Path) -> None:
         "004_conversation_assistant_name",
         "005_anthropic_fable_5",
         "006_buddy_memories_and_cache_usage",
+        "007_memory_distill_runs",
     ]
 
 
@@ -383,6 +384,73 @@ def test_messages_newer_than_watermark_for_buddy_uses_total_order(
     messages = db.messages_newer_than_watermark_for_buddy(first.id, db_path)
 
     assert [message.id for message in messages] == ["message-c", "message-d"]
+
+
+def test_commit_buddy_memory_distill_updates_memory_and_records_run(
+    db_path: Path,
+) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-a", db_path)
+    conversation = db.create_conversation(
+        "Chat",
+        "anthropic",
+        "claude-a",
+        buddy_id=buddy.id,
+        path=db_path,
+    )
+    message = db.add_message(conversation.id, "user", "hello", path=db_path)
+    usage = TokenUsage(
+        input_tokens=10,
+        output_tokens=20,
+        model="claude-opus-4-8",
+        cache_creation_5m_input_tokens=1,
+        cache_creation_1h_input_tokens=2,
+        cache_read_input_tokens=3,
+    )
+
+    memory = db.commit_buddy_memory_distill(
+        buddy.id,
+        "Rewritten memory.",
+        message,
+        "anthropic",
+        "incremental",
+        usage,
+        0.001,
+        db_path,
+    )
+    runs = db.list_memory_distill_runs(buddy.id, db_path)
+
+    assert memory.memory_text == "Rewritten memory."
+    assert memory.watermark_created_at == message.created_at.isoformat()
+    assert memory.watermark_message_id == message.id
+    assert len(runs) == 1
+    assert runs[0].status == "success"
+    assert runs[0].mode == "incremental"
+    assert runs[0].input_tokens == 10
+    assert runs[0].output_tokens == 20
+    assert runs[0].cost_usd == 0.001
+    assert runs[0].cache_creation_5m_input_tokens == 1
+    assert runs[0].cache_creation_1h_input_tokens == 2
+    assert runs[0].cache_read_input_tokens == 3
+    assert runs[0].watermark_message_id == message.id
+
+
+def test_record_memory_distill_run_does_not_update_memory(db_path: Path) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-a", db_path)
+
+    run = db.record_memory_distill_run(
+        buddy_id=buddy.id,
+        provider_id="anthropic",
+        model="claude-opus-4-8",
+        mode="refactor",
+        status="failed",
+        path=db_path,
+        failure_reason="invalid_output",
+    )
+
+    assert run.status == "failed"
+    assert run.mode == "refactor"
+    assert run.failure_reason == "invalid_output"
+    assert db.get_buddy_memory(buddy.id, db_path) is None
 
 
 def test_delete_message_removes_only_that_message(db_path: Path) -> None:

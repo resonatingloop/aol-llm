@@ -26,9 +26,16 @@ class ProviderSettings:
 
 
 @dataclass(frozen=True)
+class MemoryConfig:
+    distiller_provider: str = "anthropic"
+    distiller_model: str = "claude-opus-4-8"
+
+
+@dataclass(frozen=True)
 class AppConfig:
     ui: UIConfig = field(default_factory=UIConfig)
     providers: dict[str, ProviderSettings] = field(default_factory=dict)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
 
 
 def user_config_dir() -> Path:
@@ -92,6 +99,7 @@ def provider_settings(config: AppConfig, provider_id: str) -> ProviderSettings:
 def _parse_config(data: dict[str, Any]) -> AppConfig:
     ui_data = _dict_value(data, "ui")
     providers_data = _dict_value(data, "providers")
+    memory_data = _dict_value(data, "memory")
     return AppConfig(
         ui=UIConfig(
             theme=_str_value(ui_data, "theme", "default"),
@@ -103,6 +111,18 @@ def _parse_config(data: dict[str, Any]) -> AppConfig:
             for provider_id, provider_data in providers_data.items()
             if isinstance(provider_id, str) and isinstance(provider_data, dict)
         },
+        memory=MemoryConfig(
+            distiller_provider=_str_value(
+                memory_data,
+                "distiller_provider",
+                "anthropic",
+            ),
+            distiller_model=_str_value(
+                memory_data,
+                "distiller_model",
+                "claude-opus-4-8",
+            ),
+        ),
     )
 
 
@@ -116,7 +136,7 @@ def _parse_provider_settings(data: dict[str, Any]) -> ProviderSettings:
 def _merge_default_providers(config: AppConfig) -> AppConfig:
     defaults = default_config()
     providers = {**defaults.providers, **config.providers}
-    return AppConfig(ui=config.ui, providers=providers)
+    return AppConfig(ui=config.ui, providers=providers, memory=config.memory)
 
 
 def _dict_value(data: dict[str, Any], key: str) -> dict[str, Any]:
@@ -140,6 +160,10 @@ def _format_config(config: AppConfig) -> str:
         f'theme = "{_toml_escape(config.ui.theme)}"',
         f'default_provider = "{_toml_escape(config.ui.default_provider)}"',
         f'assistant_name = "{_toml_escape(config.ui.assistant_name)}"',
+        "",
+        "[memory]",
+        f'distiller_provider = "{_toml_escape(config.memory.distiller_provider)}"',
+        f'distiller_model = "{_toml_escape(config.memory.distiller_model)}"',
         "",
     ]
     for provider_id in sorted(config.providers):

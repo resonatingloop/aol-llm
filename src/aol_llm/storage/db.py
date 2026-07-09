@@ -1,10 +1,11 @@
 """SQLite repository functions."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 import json
 from pathlib import Path
 import sqlite3
-from typing import cast
+from typing import Literal, cast
 from uuid import uuid4
 
 from aol_llm.core.types import (
@@ -17,6 +18,7 @@ from aol_llm.core.types import (
     PromptVersion,
     ProviderConfig,
     Role,
+    TokenUsage,
 )
 from aol_llm.storage.connection import get_connection as _get_connection
 from aol_llm.storage.connection import init_db as _init_db
@@ -31,6 +33,29 @@ from aol_llm.storage.rows import (
     prompt_version_from_row,
     provider_from_row,
 )
+
+DistillMode = Literal["incremental", "refactor"]
+DistillRunStatus = Literal["success", "failed", "noop"]
+
+
+@dataclass(frozen=True)
+class MemoryDistillRun:
+    id: str
+    buddy_id: str
+    provider_id: str
+    model: str
+    mode: DistillMode
+    status: DistillRunStatus
+    input_tokens: int | None
+    output_tokens: int | None
+    cost_usd: float | None
+    cache_creation_5m_input_tokens: int | None
+    cache_creation_1h_input_tokens: int | None
+    cache_read_input_tokens: int | None
+    watermark_created_at: str | None
+    watermark_message_id: str | None
+    failure_reason: str | None
+    created_at: datetime
 
 
 def get_connection(path: Path | None = None) -> sqlite3.Connection:
@@ -371,6 +396,124 @@ def clear_buddy_memory(buddy_id: str, path: Path | None = None) -> BuddyMemory:
     memory = get_buddy_memory(buddy_id, path)
     assert memory is not None
     return memory
+
+
+def commit_buddy_memory_distill(
+    buddy_id: str,
+    memory_text: str,
+    watermark_message: Message,
+    provider_id: str,
+    mode: DistillMode,
+    usage: TokenUsage,
+    cost_usd: float | None,
+    path: Path | None = None,
+) -> BuddyMemory:
+    now = format_dt(_now())
+    with get_connection(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO buddy_memories
+                (buddy_id, memory_text, enabled, suppress_injection,
+                 watermark_created_at, watermark_message_id, updated_at)
+            VALUES
+                (?, ?, 1, 0, ?, ?, ?)
+            ON CONFLICT(buddy_id) DO UPDATE SET
+                memory_text = excluded.memory_text,
+                suppress_injection = 0,
+                watermark_created_at = excluded.watermark_created_at,
+                watermark_message_id = excluded.watermark_message_id,
+                updated_at = excluded.updated_at
+            """,
+            (
+                buddy_id,
+                memory_text,
+                format_dt(watermark_message.created_at),
+                watermark_message.id,
+                now,
+            ),
+        )
+        _insert_memory_distill_run(
+            connection,
+            buddy_id=buddy_id,
+            provider_id=provider_id,
+            model=usage.model,
+            mode=mode,
+            status="success",
+            usage=usage,
+            cost_usd=cost_usd,
+            watermark_created_at=format_dt(watermark_message.created_at),
+            watermark_message_id=watermark_message.id,
+            failure_reason=None,
+            created_at=now,
+        )
+    memory = get_buddy_memory(buddy_id, path)
+    assert memory is not None
+    return memory
+
+
+def record_memory_distill_run(
+    buddy_id: str,
+    provider_id: str,
+    model: str,
+    mode: DistillMode,
+    status: DistillRunStatus,
+    path: Path | None = None,
+    usage: TokenUsage | None = None,
+    cost_usd: float | None = None,
+    watermark_message: Message | None = None,
+    failure_reason: str | None = None,
+) -> MemoryDistillRun:
+    now = format_dt(_now())
+    with get_connection(path) as connection:
+        run_id = _insert_memory_distill_run(
+            connection,
+            buddy_id=buddy_id,
+            provider_id=provider_id,
+            model=model if usage is None else usage.model,
+            mode=mode,
+            status=status,
+            usage=usage,
+            cost_usd=cost_usd,
+            watermark_created_at=(
+                None
+                if watermark_message is None
+                else format_dt(watermark_message.created_at)
+            ),
+            watermark_message_id=None
+            if watermark_message is None
+            else watermark_message.id,
+            failure_reason=failure_reason,
+            created_at=now,
+        )
+    return get_memory_distill_run(run_id, path)
+
+
+def get_memory_distill_run(id: str, path: Path | None = None) -> MemoryDistillRun:
+    with get_connection(path) as connection:
+        row = connection.execute(
+            "SELECT * FROM memory_distill_runs WHERE id = ?",
+            (id,),
+        ).fetchone()
+    if row is None:
+        raise KeyError(f"unknown memory distill run: {id}")
+    return _memory_distill_run_from_row(row)
+
+
+def list_memory_distill_runs(
+    buddy_id: str,
+    path: Path | None = None,
+) -> list[MemoryDistillRun]:
+    with get_connection(path) as connection:
+        rows = connection.execute(
+            """
+            SELECT *
+            FROM memory_distill_runs
+            WHERE buddy_id = ?
+            ORDER BY created_at, id
+            """,
+            (buddy_id,),
+        )
+        return [_memory_distill_run_from_row(row) for row in rows]
 
 
 def messages_newer_than_watermark_for_buddy(
@@ -773,6 +916,81 @@ def get_app_setting(key: str, path: Path | None = None) -> str | None:
             "SELECT value FROM app_settings WHERE key = ?", (key,)
         ).fetchone()
     return None if row is None else cast(str, row["value"])
+
+
+def _insert_memory_distill_run(
+    connection: sqlite3.Connection,
+    *,
+    buddy_id: str,
+    provider_id: str,
+    model: str,
+    mode: DistillMode,
+    status: DistillRunStatus,
+    usage: TokenUsage | None,
+    cost_usd: float | None,
+    watermark_created_at: str | None,
+    watermark_message_id: str | None,
+    failure_reason: str | None,
+    created_at: str,
+) -> str:
+    run_id = uuid4().hex
+    connection.execute(
+        """
+        INSERT INTO memory_distill_runs
+            (id, buddy_id, provider_id, model, mode, status, input_tokens,
+             output_tokens, cost_usd, cache_creation_5m_input_tokens,
+             cache_creation_1h_input_tokens, cache_read_input_tokens,
+             watermark_created_at, watermark_message_id, failure_reason, created_at)
+        VALUES
+            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            run_id,
+            buddy_id,
+            provider_id,
+            model,
+            mode,
+            status,
+            None if usage is None else usage.input_tokens,
+            None if usage is None else usage.output_tokens,
+            cost_usd,
+            None if usage is None else usage.cache_creation_5m_input_tokens,
+            None if usage is None else usage.cache_creation_1h_input_tokens,
+            None if usage is None else usage.cache_read_input_tokens,
+            watermark_created_at,
+            watermark_message_id,
+            failure_reason,
+            created_at,
+        ),
+    )
+    return run_id
+
+
+def _memory_distill_run_from_row(row: sqlite3.Row) -> MemoryDistillRun:
+    return MemoryDistillRun(
+        id=cast(str, row["id"]),
+        buddy_id=cast(str, row["buddy_id"]),
+        provider_id=cast(str, row["provider_id"]),
+        model=cast(str, row["model"]),
+        mode=cast(DistillMode, row["mode"]),
+        status=cast(DistillRunStatus, row["status"]),
+        input_tokens=cast(int | None, row["input_tokens"]),
+        output_tokens=cast(int | None, row["output_tokens"]),
+        cost_usd=cast(float | None, row["cost_usd"]),
+        cache_creation_5m_input_tokens=cast(
+            int | None,
+            row["cache_creation_5m_input_tokens"],
+        ),
+        cache_creation_1h_input_tokens=cast(
+            int | None,
+            row["cache_creation_1h_input_tokens"],
+        ),
+        cache_read_input_tokens=cast(int | None, row["cache_read_input_tokens"]),
+        watermark_created_at=cast(str | None, row["watermark_created_at"]),
+        watermark_message_id=cast(str | None, row["watermark_message_id"]),
+        failure_reason=cast(str | None, row["failure_reason"]),
+        created_at=datetime.fromisoformat(cast(str, row["created_at"])),
+    )
 
 
 def _now() -> datetime:

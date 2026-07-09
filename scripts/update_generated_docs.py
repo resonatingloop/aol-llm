@@ -82,6 +82,11 @@ def _provider_defaults_toml() -> str:
         "[ui]",
         f'theme = "{config.ui.theme}"',
         f'default_provider = "{config.ui.default_provider}"',
+        f'assistant_name = "{config.ui.assistant_name}"',
+        "",
+        "[memory]",
+        f'distiller_provider = "{config.memory.distiller_provider}"',
+        f'distiller_model = "{config.memory.distiller_model}"',
         "",
     ]
     for provider_id, settings in config.providers.items():

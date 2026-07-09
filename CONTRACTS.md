@@ -261,6 +261,25 @@ CREATE TABLE buddy_memories (
     watermark_message_id TEXT,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE memory_distill_runs (
+    id              TEXT PRIMARY KEY,
+    buddy_id        TEXT NOT NULL REFERENCES buddies(id) ON DELETE CASCADE,
+    provider_id     TEXT NOT NULL,
+    model           TEXT NOT NULL,
+    mode            TEXT NOT NULL CHECK (mode IN ('incremental', 'refactor')),
+    status          TEXT NOT NULL CHECK (status IN ('success', 'failed', 'noop')),
+    input_tokens    INTEGER,
+    output_tokens   INTEGER,
+    cost_usd        REAL,
+    cache_creation_5m_input_tokens INTEGER,
+    cache_creation_1h_input_tokens INTEGER,
+    cache_read_input_tokens INTEGER,
+    watermark_created_at TEXT,
+    watermark_message_id TEXT,
+    failure_reason  TEXT,
+    created_at      TEXT NOT NULL
+);
 ```
 
 `002_buddies_prompts.sql` adds:
@@ -298,6 +317,7 @@ current migrations:
 - `004_conversation_assistant_name.sql`
 - `005_anthropic_fable_5.sql`
 - `006_buddy_memories_and_cache_usage.sql`
+- `007_memory_distill_runs.sql`
 
 ## storage layer contract
 
@@ -320,6 +340,9 @@ current migrations:
 - `set_buddy_memory_suppressed(buddy_id, suppressed) -> BuddyMemory`
 - `clear_buddy_memory(buddy_id) -> BuddyMemory`
 - `messages_newer_than_watermark_for_buddy(buddy_id) -> list[Message]`
+- `commit_buddy_memory_distill(...) -> BuddyMemory`
+- `record_memory_distill_run(...) -> MemoryDistillRun`
+- `list_memory_distill_runs(buddy_id) -> list[MemoryDistillRun]`
 - `buddy_exists(provider_id, model) -> bool` (includes archived buddies)
 - `create_prompt(...) -> Prompt`
 - `create_prompt_version(...) -> PromptVersion`
@@ -380,6 +403,34 @@ Anthropic adapter sends top-level automatic cache control:
 
 OpenAI-compatible providers ignore the cache policy.
 
+## memory distiller contract
+
+`src/aol_llm/memory_distiller.py` owns the backend distillation loop. The public
+entrypoint is `distill_buddy_memory(buddy_id, mode="incremental", ...)`.
+Supported modes are `incremental` and `refactor`; the mode is passed to the
+prompt as a runtime input on every batch.
+
+Distillation is per-buddy and oldest-first. Each batch sends the current memory
+document plus a transcript slice newer than the buddy watermark to the configured
+provider/model. The configured default is `anthropic / claude-opus-4-8`.
+Distiller traffic uses the normal provider adapter and pricing layer; there are
+no side-channel API calls.
+
+The distiller prompt artifact lives at
+`src/aol_llm/data/memory_distiller_prompt.md`. Runtime inputs are delimited as
+`<current_memory>`, `<transcript_slice>`, and `<mode>`. The prompt must return a
+full rewritten memory document, not a patch or append-only delta.
+
+Before committing a successful provider response, the distiller applies a
+deterministic output validation gate. Invalid output is a failed batch: no
+`memory_text` replacement and no watermark advance. The validator checks for a
+non-empty markdown document, no fenced wrapper or preamble, canonical heading
+order, preserved descriptor lines/comments from the current document, and
+thread warmth tags only on thread list items.
+
+No-op distillation is required when no messages are newer than the watermark.
+That path makes zero provider calls and records a `noop` distill run.
+
 ## config & secrets
 
 config at `platformdirs.user_config_dir("aol-llm") / "config.toml"`. schema:
@@ -389,6 +440,11 @@ config at `platformdirs.user_config_dir("aol-llm") / "config.toml"`. schema:
 [ui]
 theme = "default"
 default_provider = "anthropic"
+assistant_name = "assistant"
+
+[memory]
+distiller_provider = "anthropic"
+distiller_model = "claude-opus-4-8"
 
 [providers.anthropic]
 default_model = "claude-opus-4-8"

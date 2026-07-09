@@ -56,6 +56,13 @@ src/aol_llm/prompt_assembly.py
   assemble_prompt
   should_inject_memory
 
+src/aol_llm/memory_distiller.py
+  DistillResult
+  InvalidMemoryOutputError
+  distill_buddy_memory
+  load_distiller_prompt
+  validate_memory_output
+
 src/aol_llm/core/errors.py
   ProviderError
   AuthError
@@ -84,6 +91,13 @@ structured system blocks. `ChatService` freezes the buddy memory row per
 conversation for its own process lifetime; a-way prompt resolution remains
 per-send.
 
+`memory_distiller.py` runs backend buddy-memory distillation. It batches
+messages newer than the buddy watermark oldest-first, calls the configured
+provider/model through the normal provider adapter, validates the returned full
+memory document, then atomically commits memory replacement plus watermark
+advance. Invalid output is recorded as a failed distill run and does not update
+memory.
+
 ## Config And Secrets
 
 ```text
@@ -91,6 +105,7 @@ src/aol_llm/config.py
   XDG path helpers
   TOML load/save
   built-in provider defaults
+  built-in memory distiller defaults
   missing built-in provider merge for existing configs
 
 src/aol_llm/secrets.py
@@ -126,6 +141,9 @@ aol-llm.xai
 src/aol_llm/data/model_prices.json
   committed LiteLLM-derived pricing snapshot
 
+src/aol_llm/data/memory_distiller_prompt.md
+  committed distiller prompt artifact
+
 scripts/refresh_pricing.py
   refreshes the vendored pricing snapshot from LiteLLM upstream
 ```
@@ -157,6 +175,7 @@ src/aol_llm/storage/migrations/
   004_conversation_assistant_name.sql
   005_anthropic_fable_5.sql
   006_buddy_memories_and_cache_usage.sql
+  007_memory_distill_runs.sql
 
 src/aol_llm/storage/rows.py
   sqlite.Row -> dataclass conversion
@@ -164,6 +183,7 @@ src/aol_llm/storage/rows.py
 src/aol_llm/storage/db.py
   repository functions over sqlite3
   buddy memory read/write helpers
+  memory distill commit and run-ledger helpers
 ```
 
 Primary tables:
@@ -175,6 +195,7 @@ providers
 app_settings
 buddies
 buddy_memories
+memory_distill_runs
 prompts
 prompt_versions
 schema_migrations
@@ -359,6 +380,7 @@ tests/test_config.py               config defaults, merge behavior, XDG paths
 tests/test_secrets.py              keyring helper behavior
 tests/test_storage_migration.py    SQL migrations
 tests/test_storage_db.py           repository behavior
+tests/test_memory_distiller.py     backend distillation and validation
 tests/test_chat_service.py         orchestration and management behavior
 tests/test_export.py               Markdown/JSON export behavior
 tests/test_ui_commands.py          composer slash command parsing

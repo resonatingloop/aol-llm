@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from aol_llm import config as config_module
-from aol_llm.config import AppConfig, ProviderSettings, UIConfig
+from aol_llm.config import AppConfig, MemoryConfig, ProviderSettings, UIConfig
 
 
 def test_load_config_returns_defaults_when_file_is_missing(tmp_path: Path) -> None:
@@ -17,6 +17,8 @@ def test_load_config_returns_defaults_when_file_is_missing(tmp_path: Path) -> No
     assert loaded.providers["mistral"].base_url == "https://api.mistral.ai/v1"
     assert loaded.providers["xai"].default_model == "grok-4.3"
     assert loaded.providers["xai"].base_url == "https://api.x.ai/v1"
+    assert loaded.memory.distiller_provider == "anthropic"
+    assert loaded.memory.distiller_model == "claude-opus-4-8"
 
 
 def test_save_and_load_config_round_trips(tmp_path: Path) -> None:
@@ -42,6 +44,10 @@ def test_save_and_load_config_round_trips(tmp_path: Path) -> None:
                 base_url="https://api.x.test/v1",
             ),
         },
+        memory=MemoryConfig(
+            distiller_provider="anthropic",
+            distiller_model="claude-opus-test",
+        ),
     )
 
     config_module.save_config(original, path)
@@ -75,6 +81,8 @@ def test_load_config_merges_missing_default_providers(tmp_path: Path) -> None:
     assert loaded.providers["mistral"].base_url == "https://api.mistral.ai/v1"
     assert loaded.providers["xai"].default_model == "grok-4.3"
     assert loaded.providers["xai"].base_url == "https://api.x.ai/v1"
+    assert loaded.memory.distiller_provider == "anthropic"
+    assert loaded.memory.distiller_model == "claude-opus-4-8"
 
 
 def test_xdg_paths_use_platformdirs(

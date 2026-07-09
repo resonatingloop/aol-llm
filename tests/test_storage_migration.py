@@ -48,6 +48,7 @@ def test_all_migrations_add_buddy_prompt_tables_and_seed_defaults() -> None:
         "buddy_memories",
         "buddies",
         "conversations",
+        "memory_distill_runs",
         "messages",
         "prompt_versions",
         "prompts",
@@ -98,6 +99,24 @@ def test_all_migrations_add_buddy_prompt_tables_and_seed_defaults() -> None:
         "cache_creation_1h_input_tokens",
         "cache_read_input_tokens",
     }
+    distill_run_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info('memory_distill_runs')")
+    }
+    assert distill_run_columns >= {
+        "id",
+        "buddy_id",
+        "provider_id",
+        "model",
+        "mode",
+        "status",
+        "input_tokens",
+        "output_tokens",
+        "cost_usd",
+        "watermark_created_at",
+        "watermark_message_id",
+        "failure_reason",
+        "created_at",
+    }
 
 
 def test_buddy_memory_cascades_with_buddy_delete() -> None:
@@ -117,6 +136,31 @@ def test_buddy_memory_cascades_with_buddy_delete() -> None:
     connection.execute("DELETE FROM buddies WHERE id = ?", (buddy_id,))
 
     assert connection.execute("SELECT COUNT(*) FROM buddy_memories").fetchone()[0] == 0
+
+
+def test_memory_distill_runs_cascade_with_buddy_delete() -> None:
+    connection = sqlite3.connect(":memory:")
+    apply_all_migrations(connection)
+    buddy_id = connection.execute(
+        "SELECT id FROM buddies ORDER BY created_at LIMIT 1"
+    ).fetchone()[0]
+    connection.execute(
+        """
+        INSERT INTO memory_distill_runs
+            (id, buddy_id, provider_id, model, mode, status, created_at)
+        VALUES
+            ('run-id', ?, 'anthropic', 'claude-opus-4-8', 'incremental',
+             'noop', 'now')
+        """,
+        (buddy_id,),
+    )
+
+    connection.execute("DELETE FROM buddies WHERE id = ?", (buddy_id,))
+
+    assert (
+        connection.execute("SELECT COUNT(*) FROM memory_distill_runs").fetchone()[0]
+        == 0
+    )
 
 
 def test_buddy_memory_watermark_requires_complete_pair() -> None:
