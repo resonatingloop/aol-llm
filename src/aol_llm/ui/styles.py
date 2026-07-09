@@ -77,6 +77,11 @@ Screen {
     width: 1fr;
 }
 
+#status-memory {
+    width: auto;
+    padding: 0 2;
+}
+
 #status-usage {
     width: auto;
 }

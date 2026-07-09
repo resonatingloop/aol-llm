@@ -154,6 +154,10 @@ are not saved as chat messages.
 | `/copy` | Copy last prompt + response pair in active chat to clipboard |
 | `/export` | Open export menu |
 | `/away` | Open a-way menu |
+| `/memory status` | Show active buddy memory status |
+| `/memory on` | Enable active buddy memory injection |
+| `/memory off` | Disable active buddy memory injection |
+| `/memory forget` | Forget active buddy memory |
 | `/memory distill` | Distill memory for the active buddy |
 | `/memory refactor` | Refactor memory for the active buddy |
 | `/buddy` | Open active buddy picker |

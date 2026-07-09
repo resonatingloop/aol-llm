@@ -67,6 +67,23 @@ class ModelChoice:
     model: str
 
 
+@dataclass(frozen=True)
+class MemoryStatus:
+    has_memory: bool
+    enabled: bool
+    suppressed: bool
+
+    @property
+    def label(self) -> str:
+        if not self.has_memory:
+            return "memory empty"
+        if self.suppressed:
+            return "memory suppressed"
+        if not self.enabled:
+            return "memory off"
+        return "memory on"
+
+
 class ChatService:
     def __init__(
         self,
@@ -273,6 +290,28 @@ class ChatService:
             api_key_getter=self._api_key_getter,
             rate_card=self._rate_card,
         )
+
+    def buddy_memory_status(self, buddy_id: str) -> MemoryStatus:
+        memory = db.get_buddy_memory(buddy_id, self._db_path)
+        if memory is None:
+            return MemoryStatus(has_memory=False, enabled=True, suppressed=False)
+        return MemoryStatus(
+            has_memory=bool(memory.memory_text.strip()),
+            enabled=memory.enabled,
+            suppressed=memory.suppress_injection,
+        )
+
+    def set_buddy_memory_enabled(
+        self,
+        buddy_id: str,
+        enabled: bool,
+    ) -> MemoryStatus:
+        db.set_buddy_memory_enabled(buddy_id, enabled, self._db_path)
+        return self.buddy_memory_status(buddy_id)
+
+    def clear_buddy_memory(self, buddy_id: str) -> MemoryStatus:
+        db.clear_buddy_memory(buddy_id, self._db_path)
+        return self.buddy_memory_status(buddy_id)
 
     async def send_message(
         self,

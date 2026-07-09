@@ -12,8 +12,9 @@ from aol_llm.export import export_last_pair_markdown, export_markdown
 from aol_llm.memory_distiller import DistillMode, DistillResult
 from aol_llm.ui.commands import (
     SlashCommand,
+    SlashCommandProvider,
     parse_slash_command,
-    slash_command_help_summary,
+    slash_command_detail_summary,
 )
 from aol_llm.ui.modals import (
     BuddyPickerModal,
@@ -38,6 +39,7 @@ class THRESHOLD36(App[None]):
     TITLE = "THRESHOLD36"
     CSS = APP_CSS
     BINDINGS = APP_BINDINGS
+    COMMANDS = App.COMMANDS | {SlashCommandProvider}
 
     def __init__(self, chat_service: ChatService | None = None) -> None:
         super().__init__()
@@ -324,7 +326,7 @@ class THRESHOLD36(App[None]):
             await self._handle_memory_command(command.args)
             return
         if command.name == "help":
-            self.notify(slash_command_help_summary())
+            self.notify(slash_command_detail_summary())
             return
         if command.args:
             self.notify(f"Usage: /{command.name}", severity="warning")
@@ -383,11 +385,34 @@ class THRESHOLD36(App[None]):
         self.notify("Usage: /cache on|1h|5m|off|status", severity="warning")
 
     async def _handle_memory_command(self, args: tuple[str, ...]) -> None:
-        if len(args) != 1 or args[0] not in {"distill", "refactor"}:
-            self.notify("Usage: /memory distill|refactor", severity="warning")
+        subcommands = {"status", "on", "off", "forget", "distill", "refactor"}
+        if len(args) != 1 or args[0] not in subcommands:
+            self.notify(
+                "Usage: /memory status|on|off|forget|distill|refactor",
+                severity="warning",
+            )
             return
         if self._current_buddy is None:
-            self.notify("No active buddy to distill", severity="warning")
+            self.notify("No active buddy for memory command", severity="warning")
+            return
+        if args[0] == "status":
+            self._notify_memory_status(self._current_buddy.id)
+            return
+        if args[0] == "on":
+            self._chat_service.set_buddy_memory_enabled(self._current_buddy.id, True)
+            self._refresh_memory_status()
+            self.notify("Memory injection enabled")
+            return
+        if args[0] == "off":
+            self._chat_service.set_buddy_memory_enabled(self._current_buddy.id, False)
+            self._refresh_memory_status()
+            self.notify("Memory injection disabled")
+            return
+        if args[0] == "forget":
+            self.push_screen(
+                ConfirmModal("Forget active buddy memory?"),
+                self._forget_current_buddy_memory,
+            )
             return
         mode: DistillMode = "refactor" if args[0] == "refactor" else "incremental"
         await self._distill_buddy_command(self._current_buddy.id, mode)
@@ -420,6 +445,13 @@ class THRESHOLD36(App[None]):
         self._refresh_conversation_list()
         self._set_current_conversation_for_current_buddy()
 
+    def _forget_current_buddy_memory(self, confirmed: bool | None) -> None:
+        if self._current_buddy is None or not confirmed:
+            return
+        self._chat_service.clear_buddy_memory(self._current_buddy.id)
+        self._refresh_memory_status()
+        self.notify("Memory forgotten")
+
     async def _distill_buddy_command(
         self,
         buddy_id: str,
@@ -431,6 +463,7 @@ class THRESHOLD36(App[None]):
         self._distilling_buddy_ids.add(buddy_id)
         try:
             self.notify("Distilling memory...")
+            self._set_memory_status("memory distilling")
             await self._distill_buddy(
                 buddy_id,
                 mode=mode,
@@ -439,6 +472,7 @@ class THRESHOLD36(App[None]):
             )
         finally:
             self._distilling_buddy_ids.discard(buddy_id)
+            self._refresh_memory_status()
 
     def _trigger_distill_for_buddy(
         self,
@@ -452,6 +486,8 @@ class THRESHOLD36(App[None]):
                 self.exit()
             return
         self._distilling_buddy_ids.add(buddy_id)
+        if self._current_buddy is not None and self._current_buddy.id == buddy_id:
+            self._set_memory_status("memory distilling")
         self.run_worker(
             self._distill_buddy_worker(
                 buddy_id,
@@ -479,6 +515,8 @@ class THRESHOLD36(App[None]):
             )
         finally:
             self._distilling_buddy_ids.discard(buddy_id)
+            if self._current_buddy is not None and self._current_buddy.id == buddy_id:
+                self._refresh_memory_status()
             if exit_after:
                 self.exit()
 
@@ -503,6 +541,10 @@ class THRESHOLD36(App[None]):
                 self.notify("Memory already current")
             return
         self.notify(_distill_success_message(result, reason))
+
+    def _notify_memory_status(self, buddy_id: str) -> None:
+        status = self._chat_service.buddy_memory_status(buddy_id)
+        self.notify(f"Memory status: {status.label}")
 
     def _refresh_buddy_list(self) -> None:
         buddies = self._chat_service.list_buddies()
@@ -541,6 +583,7 @@ class THRESHOLD36(App[None]):
         ):
             self._current_buddy = self._chat_service.get_buddy(conversation.buddy_id)
         self._refresh_status_model()
+        self._refresh_memory_status()
         self._load_current_transcript()
 
     def _refresh_status_model(self) -> None:
@@ -555,6 +598,20 @@ class THRESHOLD36(App[None]):
             f"{prefix}{self._current_conversation.provider_id}",
             self._current_conversation.model,
         )
+
+    def _refresh_memory_status(self) -> None:
+        if self._current_buddy is None:
+            self._set_memory_status("memory empty")
+            return
+        if self._current_buddy.id in self._distilling_buddy_ids:
+            self._set_memory_status("memory distilling")
+            return
+        self._set_memory_status(
+            self._chat_service.buddy_memory_status(self._current_buddy.id).label
+        )
+
+    def _set_memory_status(self, status: str) -> None:
+        self.screen.query_one(StatusBar).set_memory(status)
 
     def _load_current_transcript(self) -> None:
         if self._current_conversation is None:

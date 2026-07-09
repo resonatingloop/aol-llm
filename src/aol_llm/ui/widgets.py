@@ -88,6 +88,7 @@ class StatusBar(Static):
     def compose(self) -> ComposeResult:
         with Horizontal(id="status-row"):
             yield Static("anthropic / claude-sonnet-test", id="status-model")
+            yield Static("memory empty", id="status-memory")
             yield Static(
                 format_usage_status(0, 0, 0.0),
                 id="status-usage",
@@ -95,6 +96,9 @@ class StatusBar(Static):
 
     def set_model(self, provider_id: str, model: str) -> None:
         self.query_one("#status-model", Static).update(f"{provider_id} / {model}")
+
+    def set_memory(self, status: str) -> None:
+        self.query_one("#status-memory", Static).update(status)
 
     def set_usage(
         self,

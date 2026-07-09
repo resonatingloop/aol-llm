@@ -2,6 +2,7 @@ from aol_llm.ui.commands import (
     SLASH_COMMAND_DOCS,
     SlashCommand,
     parse_slash_command,
+    slash_command_detail_summary,
     slash_command_help_summary,
 )
 from aol_llm.ui.widgets import format_usage_status
@@ -36,6 +37,14 @@ def test_slash_command_help_summary_lists_documented_commands() -> None:
     for command in SLASH_COMMAND_DOCS:
         if command.command != "/help":
             assert command.command in summary
+
+
+def test_slash_command_detail_summary_includes_actions() -> None:
+    summary = slash_command_detail_summary()
+
+    assert "/help" not in summary
+    assert "/memory status" in summary
+    assert "Show active buddy memory status" in summary
 
 
 def test_format_usage_status_includes_cache_counters() -> None:

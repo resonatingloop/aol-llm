@@ -220,6 +220,51 @@ def test_init_seeds_buddies_for_configured_provider_defaults(tmp_path: Path) -> 
     }
 
 
+def test_buddy_memory_status_reports_empty_on_missing_row(tmp_path: Path) -> None:
+    service = ChatService(db_path=tmp_path / "chat.db", app_config=app_config())
+    service.init()
+    buddy = service.default_buddy()
+
+    status = service.buddy_memory_status(buddy.id)
+
+    assert status.has_memory is False
+    assert status.enabled is True
+    assert status.suppressed is False
+    assert status.label == "memory empty"
+
+
+def test_buddy_memory_status_tracks_enabled_and_suppressed(tmp_path: Path) -> None:
+    db_path = tmp_path / "chat.db"
+    service = ChatService(db_path=db_path, app_config=app_config())
+    service.init()
+    buddy = service.default_buddy()
+    db.upsert_buddy_memory(buddy.id, "Remember this.", path=db_path)
+
+    enabled = service.buddy_memory_status(buddy.id)
+    disabled = service.set_buddy_memory_enabled(buddy.id, False)
+    db.set_buddy_memory_suppressed(buddy.id, True, db_path)
+    suppressed = service.buddy_memory_status(buddy.id)
+
+    assert enabled.label == "memory on"
+    assert disabled.label == "memory off"
+    assert suppressed.label == "memory suppressed"
+
+
+def test_clear_buddy_memory_forgets_text_and_reports_empty(tmp_path: Path) -> None:
+    db_path = tmp_path / "chat.db"
+    service = ChatService(db_path=db_path, app_config=app_config())
+    service.init()
+    buddy = service.default_buddy()
+    db.upsert_buddy_memory(buddy.id, "Remember this.", path=db_path)
+
+    status = service.clear_buddy_memory(buddy.id)
+
+    assert status.label == "memory empty"
+    memory = db.get_buddy_memory(buddy.id, db_path)
+    assert memory is not None
+    assert memory.memory_text == ""
+
+
 @pytest.mark.asyncio
 async def test_distill_buddy_memory_delegates_service_dependencies(
     monkeypatch: pytest.MonkeyPatch,

@@ -559,6 +559,10 @@ current commands:
 - `/copy`
 - `/export`
 - `/away`
+- `/memory status`
+- `/memory on`
+- `/memory off`
+- `/memory forget`
 - `/memory distill`
 - `/memory refactor`
 - `/buddy`
