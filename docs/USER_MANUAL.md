@@ -154,6 +154,8 @@ are not saved as chat messages.
 | `/copy` | Copy last prompt + response pair in active chat to clipboard |
 | `/export` | Open export menu |
 | `/away` | Open a-way menu |
+| `/memory distill` | Distill memory for the active buddy |
+| `/memory refactor` | Refactor memory for the active buddy |
 | `/buddy` | Open active buddy picker |
 | `/chatname` | Open current chat name editor |
 | `/quit` | Quit |

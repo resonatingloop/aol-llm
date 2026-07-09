@@ -18,6 +18,13 @@ def test_parse_slash_command_normalizes_name_and_args() -> None:
     )
 
 
+def test_parse_slash_command_keeps_memory_subcommand_as_arg() -> None:
+    assert parse_slash_command("/memory refactor") == SlashCommand(
+        name="memory",
+        args=("refactor",),
+    )
+
+
 def test_parse_slash_command_handles_empty_slash() -> None:
     assert parse_slash_command("/") == SlashCommand(name="", args=())
 

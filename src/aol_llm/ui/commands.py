@@ -28,6 +28,8 @@ SLASH_COMMAND_DOCS: tuple[SlashCommandDoc, ...] = (
     ),
     SlashCommandDoc("/export", "Open export menu"),
     SlashCommandDoc("/away", "Open a-way menu"),
+    SlashCommandDoc("/memory distill", "Distill memory for the active buddy"),
+    SlashCommandDoc("/memory refactor", "Refactor memory for the active buddy"),
     SlashCommandDoc("/buddy", "Open active buddy picker"),
     SlashCommandDoc("/chatname", "Open current chat name editor"),
     SlashCommandDoc("/quit", "Quit"),

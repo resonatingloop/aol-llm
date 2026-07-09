@@ -12,6 +12,7 @@ from aol_llm.core.types import (
     StreamChunk,
     TokenUsage,
 )
+from aol_llm.memory_distiller import DistillResult
 from aol_llm.prompt_assembly import MEMORY_BLOCK_HEADING
 from aol_llm.providers.base import Provider
 from aol_llm.storage import db
@@ -216,6 +217,58 @@ def test_init_seeds_buddies_for_configured_provider_defaults(tmp_path: Path) -> 
         ("openai", "gpt-5"),
         ("mistral", "mistral-small-2603"),
         ("xai", "grok-4.3"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_distill_buddy_memory_delegates_service_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chat.db"
+    config = app_config()
+    service = ChatService(
+        db_path=db_path,
+        app_config=config,
+        provider_factory=provider_factory,
+        api_key_getter=lambda provider_id: "secret",
+        rate_card={
+            "claude-test": ModelPricing(input_per_mtok=1.0, output_per_mtok=2.0)
+        },
+    )
+    service.init()
+    buddy = service.default_buddy()
+    seen: dict[str, object] = {}
+
+    async def fake_distiller(**kwargs: object) -> DistillResult:
+        seen.update(kwargs)
+        return DistillResult(
+            buddy_id=buddy.id,
+            status="noop",
+            batches=0,
+            memory_text="",
+        )
+
+    async def fake_run_memory_distiller(
+        buddy_id: str,
+        **kwargs: object,
+    ) -> DistillResult:
+        seen["buddy_id"] = buddy_id
+        return await fake_distiller(**kwargs)
+
+    monkeypatch.setattr("aol_llm.chat.run_memory_distiller", fake_run_memory_distiller)
+
+    result = await service.distill_buddy_memory(buddy.id, mode="refactor")
+
+    assert result.status == "noop"
+    assert seen["buddy_id"] == buddy.id
+    assert seen["mode"] == "refactor"
+    assert seen["db_path"] == db_path
+    assert seen["app_config"] == config
+    assert seen["provider_factory"] == provider_factory
+    assert "api_key_getter" in seen
+    assert seen["rate_card"] == {
+        "claude-test": ModelPricing(input_per_mtok=1.0, output_per_mtok=2.0)
     }
 
 

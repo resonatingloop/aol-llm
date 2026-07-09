@@ -168,6 +168,11 @@ venv.bak/
 aol-llm.db
 exports/
 
+# Local/private memory seed documents
+docs/private-memory*.md
+docs/*personal-memory*.md
+docs/*local-memory*.md
+
 # Spyder project settings
 .spyderproject
 .spyproject

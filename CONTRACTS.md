@@ -559,6 +559,8 @@ current commands:
 - `/copy`
 - `/export`
 - `/away`
+- `/memory distill`
+- `/memory refactor`
 - `/buddy`
 - `/chatname`
 - `/quit`

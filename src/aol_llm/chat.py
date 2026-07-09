@@ -16,6 +16,11 @@ from aol_llm.core.types import (
     ProviderKind,
 )
 from aol_llm.export import write_export
+from aol_llm.memory_distiller import (
+    DistillMode,
+    DistillResult,
+    distill_buddy_memory as run_memory_distiller,
+)
 from aol_llm.prompt_assembly import assemble_prompt
 from aol_llm.providers.base import Provider
 from aol_llm.providers.registry import build_provider
@@ -252,6 +257,22 @@ class ChatService:
         if value in PROMPT_CACHE_MODES:
             return value
         return "off"
+
+    async def distill_buddy_memory(
+        self,
+        buddy_id: str,
+        *,
+        mode: DistillMode = "incremental",
+    ) -> DistillResult:
+        return await run_memory_distiller(
+            buddy_id,
+            mode=mode,
+            db_path=self._db_path,
+            app_config=self._config,
+            provider_factory=self._provider_factory,
+            api_key_getter=self._api_key_getter,
+            rate_card=self._rate_card,
+        )
 
     async def send_message(
         self,

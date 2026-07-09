@@ -9,6 +9,7 @@ from aol_llm.chat import ChatEvent, ChatService, ModelChoice
 from aol_llm.core.errors import ProviderError
 from aol_llm.core.types import Buddy, Conversation
 from aol_llm.export import export_last_pair_markdown, export_markdown
+from aol_llm.memory_distiller import DistillMode, DistillResult
 from aol_llm.ui.commands import (
     SlashCommand,
     parse_slash_command,
@@ -46,6 +47,7 @@ class THRESHOLD36(App[None]):
         self._current_conversation: Conversation | None = None
         self._conversation_ids: list[str] = []
         self._sending = False
+        self._distilling_buddy_ids: set[str] = set()
 
     async def on_mount(self) -> None:
         await self.push_screen(MainScreen())
@@ -71,7 +73,7 @@ class THRESHOLD36(App[None]):
         command = parse_slash_command(content)
         if command is not None:
             composer.clear()
-            self._handle_slash_command(command)
+            await self._handle_slash_command(command)
             return
 
         self._sending = True
@@ -199,13 +201,27 @@ class THRESHOLD36(App[None]):
             ConfirmModal("Delete current chat?"), self._delete_current_chat
         )
 
+    async def action_quit(self) -> None:
+        if self._current_buddy is None:
+            self.exit()
+            return
+        self._trigger_distill_for_buddy(
+            self._current_buddy.id,
+            reason="quit",
+            exit_after=True,
+        )
+
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if event.list_view.id == "buddy-list":
             if event.index >= len(self._buddy_ids):
                 return
-            self._set_current_buddy(
-                self._chat_service.get_buddy(self._buddy_ids[event.index])
-            )
+            buddy_id = self._buddy_ids[event.index]
+            if self._current_buddy is not None and self._current_buddy.id != buddy_id:
+                self._trigger_distill_for_buddy(
+                    self._current_buddy.id,
+                    reason="buddy switch",
+                )
+            self._set_current_buddy(self._chat_service.get_buddy(buddy_id))
             return
 
         if event.list_view.id != "conversation-list":
@@ -216,6 +232,15 @@ class THRESHOLD36(App[None]):
         conversation = self._chat_service.get_conversation(
             self._conversation_ids[event.index]
         )
+        if (
+            self._current_conversation is not None
+            and self._current_conversation.id != conversation.id
+            and self._current_conversation.buddy_id is not None
+        ):
+            self._trigger_distill_for_buddy(
+                self._current_conversation.buddy_id,
+                reason="chat switch",
+            )
         self._set_current_conversation(conversation)
 
     def _rename_current_chat(self, title: str | None) -> None:
@@ -248,6 +273,11 @@ class THRESHOLD36(App[None]):
     def _switch_current_model(self, choice: ModelChoice | None) -> None:
         if self._current_conversation is None or choice is None:
             return
+        if self._current_conversation.buddy_id is not None:
+            self._trigger_distill_for_buddy(
+                self._current_conversation.buddy_id,
+                reason="model switch",
+            )
         conversation = self._chat_service.switch_model(
             self._current_conversation.id,
             choice.provider_id,
@@ -260,6 +290,11 @@ class THRESHOLD36(App[None]):
     def _switch_current_buddy(self, buddy: Buddy | None) -> None:
         if buddy is None:
             return
+        if self._current_buddy is not None and self._current_buddy.id != buddy.id:
+            self._trigger_distill_for_buddy(
+                self._current_buddy.id,
+                reason="buddy switch",
+            )
         self._set_current_buddy(buddy)
 
     def _update_system_prompt(self, system_prompt: str | None) -> None:
@@ -281,9 +316,12 @@ class THRESHOLD36(App[None]):
         self._load_current_transcript()
         self.notify("Reply name updated")
 
-    def _handle_slash_command(self, command: SlashCommand) -> None:
+    async def _handle_slash_command(self, command: SlashCommand) -> None:
         if command.name == "cache":
             self._handle_cache_command(command.args)
+            return
+        if command.name == "memory":
+            await self._handle_memory_command(command.args)
             return
         if command.name == "help":
             self.notify(slash_command_help_summary())
@@ -307,7 +345,7 @@ class THRESHOLD36(App[None]):
             self.action_rename_current_chat()
             return
         if command.name == "quit":
-            self.exit()
+            await self.action_quit()
             return
         if command.name == "settings":
             self.action_open_settings()
@@ -344,6 +382,16 @@ class THRESHOLD36(App[None]):
             return
         self.notify("Usage: /cache on|1h|5m|off|status", severity="warning")
 
+    async def _handle_memory_command(self, args: tuple[str, ...]) -> None:
+        if len(args) != 1 or args[0] not in {"distill", "refactor"}:
+            self.notify("Usage: /memory distill|refactor", severity="warning")
+            return
+        if self._current_buddy is None:
+            self.notify("No active buddy to distill", severity="warning")
+            return
+        mode: DistillMode = "refactor" if args[0] == "refactor" else "incremental"
+        await self._distill_buddy_command(self._current_buddy.id, mode)
+
     def _export_current_chat(self, format: str | None) -> None:
         if self._current_conversation is None or format is None:
             return
@@ -356,6 +404,11 @@ class THRESHOLD36(App[None]):
     def _archive_current_chat(self, confirmed: bool | None) -> None:
         if self._current_conversation is None or not confirmed:
             return
+        if self._current_conversation.buddy_id is not None:
+            self._trigger_distill_for_buddy(
+                self._current_conversation.buddy_id,
+                reason="archive",
+            )
         self._chat_service.archive_conversation(self._current_conversation.id)
         self._refresh_conversation_list()
         self._set_current_conversation_for_current_buddy()
@@ -366,6 +419,90 @@ class THRESHOLD36(App[None]):
         self._chat_service.delete_conversation(self._current_conversation.id)
         self._refresh_conversation_list()
         self._set_current_conversation_for_current_buddy()
+
+    async def _distill_buddy_command(
+        self,
+        buddy_id: str,
+        mode: DistillMode,
+    ) -> None:
+        if buddy_id in self._distilling_buddy_ids:
+            self.notify("Memory distillation already running", severity="warning")
+            return
+        self._distilling_buddy_ids.add(buddy_id)
+        try:
+            self.notify("Distilling memory...")
+            await self._distill_buddy(
+                buddy_id,
+                mode=mode,
+                reason="manual",
+                notify_noop=True,
+            )
+        finally:
+            self._distilling_buddy_ids.discard(buddy_id)
+
+    def _trigger_distill_for_buddy(
+        self,
+        buddy_id: str,
+        *,
+        reason: str,
+        exit_after: bool = False,
+    ) -> None:
+        if buddy_id in self._distilling_buddy_ids:
+            if exit_after:
+                self.exit()
+            return
+        self._distilling_buddy_ids.add(buddy_id)
+        self.run_worker(
+            self._distill_buddy_worker(
+                buddy_id,
+                reason=reason,
+                exit_after=exit_after,
+            ),
+            name=f"memory-distill-{buddy_id}",
+            group="memory-distill",
+            exit_on_error=False,
+        )
+
+    async def _distill_buddy_worker(
+        self,
+        buddy_id: str,
+        *,
+        reason: str,
+        exit_after: bool,
+    ) -> None:
+        try:
+            await self._distill_buddy(
+                buddy_id,
+                mode="incremental",
+                reason=reason,
+                notify_noop=False,
+            )
+        finally:
+            self._distilling_buddy_ids.discard(buddy_id)
+            if exit_after:
+                self.exit()
+
+    async def _distill_buddy(
+        self,
+        buddy_id: str,
+        *,
+        mode: DistillMode,
+        reason: str,
+        notify_noop: bool,
+    ) -> None:
+        try:
+            result = await self._chat_service.distill_buddy_memory(
+                buddy_id,
+                mode=mode,
+            )
+        except (ProviderError, ValueError, KeyError) as error:
+            self.notify(f"Memory distill failed: {error}", severity="error")
+            return
+        if result.status == "noop":
+            if notify_noop:
+                self.notify("Memory already current")
+            return
+        self.notify(_distill_success_message(result, reason))
 
     def _refresh_buddy_list(self) -> None:
         buddies = self._chat_service.list_buddies()
@@ -484,6 +621,14 @@ class THRESHOLD36(App[None]):
         if self._current_buddy is not None:
             return self._current_buddy.screen_name or self._current_buddy.name
         return "assistant"
+
+
+def _distill_success_message(result: DistillResult, reason: str) -> str:
+    cost = "unknown cost" if result.cost_usd is None else f"${result.cost_usd:.6f}"
+    return (
+        f"Memory distilled ({reason}): {result.batches} batch(es), "
+        f"input {result.input_tokens}, output {result.output_tokens}, {cost}"
+    )
 
 
 def run() -> None:

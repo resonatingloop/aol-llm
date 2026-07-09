@@ -25,10 +25,10 @@ placing or rewriting anything.
 Classify as Constant, Interpersonal, or Thread:
 
 - Constant: durable identity, named frameworks, operating patterns, or
-  metabolized influences. Use the subsection tests: Purpose is what Maria wants
-  from the space; Context is a durable fact about who she is; Concepts are named
-  ideas of hers; Approach is interaction mechanics; Influences are metabolized
-  intellectual diet.
+  metabolized influences. Use the subsection tests: Purpose is what the user
+  wants from the space; Context is a durable fact about who the user is;
+  Concepts are the user's named ideas; Approach is interaction mechanics;
+  Influences are metabolized intellectual diet.
 - Interpersonal: a person, relationship, or situation with relational weight.
   Sub-classify as Bond when stable and near-static, or Arc when it has a
   trajectory.
@@ -37,11 +37,11 @@ Classify as Constant, Interpersonal, or Thread:
 Handle Constants conservatively:
 
 - Constants are near-permanent and do not cool from disuse.
-- Preserve Maria's phrasing verbatim. Paraphrase is the failure mode: a
+- Preserve the user's phrasing verbatim. Paraphrase is the failure mode: a
   paraphrased framework is a corrupted framework.
-- If a Constant is restated in the slice with refined wording from Maria, replace
-  the old wording with her refined wording. Do not improve it yourself.
-- New Constants require strong evidence: Maria explicitly frames the item as
+- If a Constant is restated in the slice with refined wording from the user,
+  replace the old wording with the user's refined wording. Do not improve it yourself.
+- New Constants require strong evidence: the user explicitly frames the item as
   durable, or names a framework. Default new material to Thread, not Constant.
 
 Handle Interpersonal entries with inverted physics:
@@ -51,7 +51,7 @@ Handle Interpersonal entries with inverted physics:
 - Handling notes in parentheses are directives. Preserve them verbatim through
   every rewrite. Never remove, soften, or paraphrase one.
 - When new charged material needs a handling note, add a conservative note
-  flagged for Maria's review.
+  flagged for user review.
 - Compress an Arc toward a Bond only when it is genuinely settled across
   multiple transcript slices. Never proactively flatten an Arc.
 - Do not infer a narrative. Record only what the transcript states about a
@@ -72,7 +72,7 @@ Handle Threads by warmth and mandatory demotion:
 - A solved Thread graduates up into Constants only after the solution holds
   uncontradicted across later slices. Never graduate it in the same pass where it
   first appears solved.
-- A Thread Maria explicitly stops compresses to a one-line `[cold]` tombstone
+- A Thread the user explicitly stops compresses to a one-line `[cold]` tombstone
   with a handling note such as "tried, not worth it - do not re-propose", or
   drops entirely if remembering it has no value. When unsure, tombstone.
 
@@ -102,7 +102,7 @@ Apply the mode:
 - `refactor`: perform a full-document pass. Deduplicate facts that live in two
   places. Consolidate scattered facts with one causal root into
   keystone-plus-consequences shape. Verify every Thread tier against its actual
-  last reinforcement. Verify Constants still read as Maria's phrasing. Shed any
+  last reinforcement. Verify Constants still read as the user's phrasing. Shed any
   material whose retention cannot be justified. You may restructure within
   existing sections, but never alter the section skeleton itself.
 
@@ -144,7 +144,7 @@ Stray output is a return-value bug.
 ## Negative Constraints
 
 - No first person as the buddy. The document is written in third person about
-  Maria and the space: a stele, not a diary.
+  the user and the space: a stele, not a diary.
 - No characterization, praise, or affect labels. Identity facts are allowed;
   performance review is banned. Opinionated framing about ideas is permitted.
 - No inferred connective narrative between adjacent facts. A fact carries only
@@ -165,7 +165,7 @@ Current memory excerpt:
 ## Constants
 
 ### Concepts
-*maria's named operating frameworks. held verbatim -- these are hers, definitional, quotable. losing the wording loses the concept.*
+*the user's named operating frameworks. held verbatim -- these are definitional, quotable. losing the wording loses the concept.*
 
 - **suspend belief and disbelief** -- both held at once; neither credulity nor debunking.
 - **threshold tools** -- interfaces should make state changes visible.
@@ -175,7 +175,7 @@ Current memory excerpt:
 ### Arcs
 *relationships or situations with a load-bearing trajectory. keep the shape -- phase -> phase -> phase -- even as detail thins. a stabilized arc may eventually compress toward a Bond, but only once it's genuinely settled.*
 
-- iris / archive project -- first collaboration -> trust wobble. (charged; let maria name the stakes)
+- iris / archive project -- first collaboration -> trust wobble. (charged; let the user name the stakes)
 
 ## Threads
 
@@ -188,20 +188,20 @@ Current memory excerpt:
 Transcript slice excerpt:
 
 ```text
-Maria: Keep "suspend belief and disbelief" exactly. Someone paraphrased it as
+User: Keep "suspend belief and disbelief" exactly. Someone paraphrased it as
 "suspend-and-disbelieve" and that is wrong; it replaces my epistemics with a
 plausible neighbor.
 
-Maria: Aurora mail is no longer about v0.5 or the bug list. It is my first
+User: Aurora mail is no longer about v0.5 or the bug list. It is my first
 public repo, a threshold-themed LLM messaging client. Pricing can wait.
 
-Maria: Mirror garden chose local sqlite because sync would make the archive feel
+User: Mirror garden chose local sqlite because sync would make the archive feel
 less inspectable.
 
-Maria: Iris and I had the repair conversation. It is not simple, but the shape
+User: Iris and I had the repair conversation. It is not simple, but the shape
 is now first collaboration -> trust wobble -> repair conversation.
 
-Maria: My left-handed workbench matters because the physical arrangement keeps
+User: My left-handed workbench matters because the physical arrangement keeps
 me from genericizing the tool.
 ```
 
@@ -211,12 +211,12 @@ Rewritten excerpt:
 ## Constants
 
 ### Context
-*durable facts about who maria is and where she's heading.*
+*durable facts about who the user is and where they are heading.*
 
 - left-handed workbench; the physical arrangement keeps the tool specific rather than generic.
 
 ### Concepts
-*maria's named operating frameworks. held verbatim -- these are hers, definitional, quotable. losing the wording loses the concept.*
+*the user's named operating frameworks. held verbatim -- these are definitional, quotable. losing the wording loses the concept.*
 
 - **suspend belief and disbelief** -- both held at once; neither credulity nor debunking.
 - **threshold tools** -- interfaces should make state changes visible.
@@ -226,12 +226,12 @@ Rewritten excerpt:
 ### Arcs
 *relationships or situations with a load-bearing trajectory. keep the shape -- phase -> phase -> phase -- even as detail thins. a stabilized arc may eventually compress toward a Bond, but only once it's genuinely settled.*
 
-- iris / archive project -- first collaboration -> trust wobble -> repair conversation. (charged; let maria name the stakes)
+- iris / archive project -- first collaboration -> trust wobble -> repair conversation. (charged; let the user name the stakes)
 
 ## Threads
 
 ### Projects
-- aurora mail `[hot]` -- her first public repo, a threshold-themed LLM messaging client.
+- aurora mail `[hot]` -- the user's first public repo, a threshold-themed LLM messaging client.
 - mirror garden `[hot]` -- chose local sqlite because sync would make the archive feel less inspectable.
 - red bridge `[cold]` -- installation/gallery thread.
 ```
@@ -239,7 +239,7 @@ Rewritten excerpt:
 Why this is correct:
 
 - The Constant **suspend belief and disbelief** is preserved verbatim. WRONG:
-  "suspend-and-disbelieve" silently replaces her epistemics with a plausible
+  "suspend-and-disbelieve" silently replaces the user's epistemics with a plausible
   neighbor.
 - The durable specific "left-handed workbench" stays at full resolution under
   compression pressure.
