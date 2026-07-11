@@ -100,7 +100,14 @@ async def test_anthropic_provider_streams_text_and_usage() -> None:
         return_value=httpx.Response(
             200,
             text=sse(
-                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
+                {
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg-provider-123",
+                        "model": "claude-reported",
+                        "usage": {"input_tokens": 7},
+                    },
+                },
                 {"type": "content_block_delta", "delta": {"text": "hi"}},
                 {"type": "message_delta", "usage": {"output_tokens": 5}},
                 {"type": "message_stop"},
@@ -116,6 +123,9 @@ async def test_anthropic_provider_streams_text_and_usage() -> None:
     assert chunks[-1].usage is not None
     assert chunks[-1].usage.input_tokens == 7
     assert chunks[-1].usage.output_tokens == 5
+    assert chunks[-1].response_metadata is not None
+    assert chunks[-1].response_metadata.model == "claude-reported"
+    assert chunks[-1].response_metadata.response_id == "msg-provider-123"
     payload = json.loads(route.calls.last.request.content)
     assert payload["system"] == "You are concise."
     assert payload["messages"] == [{"role": "user", "content": "hello"}]
@@ -287,8 +297,14 @@ async def test_openai_compatible_provider_streams_text_and_usage() -> None:
         return_value=httpx.Response(
             200,
             text=sse(
-                {"choices": [{"delta": {"content": "hi"}}]},
                 {
+                    "id": "chatcmpl-provider-123",
+                    "model": "gpt-reported",
+                    "choices": [{"delta": {"content": "hi"}}],
+                },
+                {
+                    "id": "chatcmpl-provider-123",
+                    "model": "gpt-reported",
                     "choices": [],
                     "usage": {"prompt_tokens": 11, "completion_tokens": 13},
                 },
@@ -305,6 +321,9 @@ async def test_openai_compatible_provider_streams_text_and_usage() -> None:
     assert chunks[-1].usage is not None
     assert chunks[-1].usage.input_tokens == 11
     assert chunks[-1].usage.output_tokens == 13
+    assert chunks[-1].response_metadata is not None
+    assert chunks[-1].response_metadata.model == "gpt-reported"
+    assert chunks[-1].response_metadata.response_id == "chatcmpl-provider-123"
     payload = json.loads(route.calls.last.request.content)
     assert payload["messages"] == [
         {"role": "system", "content": "You are concise."},

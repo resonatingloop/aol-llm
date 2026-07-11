@@ -9,6 +9,7 @@ from aol_llm.core.errors import UnknownProviderError
 from aol_llm.core.types import (
     Message,
     ProviderConfig,
+    ProviderResponseMetadata,
     StreamChunk,
     TokenUsage,
 )
@@ -60,6 +61,9 @@ class OpenAICompatibleProvider:
         if self._api_key:
             headers["authorization"] = f"Bearer {self._api_key}"
 
+        reported_model: str | None = None
+        response_id: str | None = None
+
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 async with client.stream(
@@ -70,6 +74,10 @@ class OpenAICompatibleProvider:
                 ) as response:
                     await raise_for_provider_status(response)
                     async for event in iter_sse_json(response):
+                        reported_model = (
+                            _optional_str(event.get("model")) or reported_model
+                        )
+                        response_id = _optional_str(event.get("id")) or response_id
                         usage = event.get("usage")
                         if isinstance(usage, dict):
                             yield StreamChunk(
@@ -83,6 +91,10 @@ class OpenAICompatibleProvider:
                                         usage.get("completion_tokens")
                                     ),
                                     model=model,
+                                ),
+                                response_metadata=ProviderResponseMetadata(
+                                    model=reported_model,
+                                    response_id=response_id,
                                 ),
                             )
                             return
@@ -102,6 +114,10 @@ def _required_int(value: object) -> int:
     if not isinstance(value, int):
         raise UnknownProviderError("provider usage was missing token counts")
     return value
+
+
+def _optional_str(value: object) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def _is_openai_api(base_url: str) -> bool:

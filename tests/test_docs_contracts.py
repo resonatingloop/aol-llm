@@ -99,6 +99,7 @@ def test_contracts_canonical_dataclasses_match_core_types() -> None:
         "Prompt",
         "PromptVersion",
         "ProviderConfig",
+        "ProviderResponseMetadata",
         "TokenUsage",
         "StreamChunk",
     ):
@@ -182,6 +183,23 @@ def test_docs_do_not_contain_known_stale_claims() -> None:
 def test_generated_docs_are_current() -> None:
     result = subprocess.run(
         [sys.executable, "scripts/update_generated_docs.py", "--check"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_generation_import_does_not_load_textual_or_ui() -> None:
+    code = (
+        "import sys; import aol_llm.generation; "
+        "assert 'textual' not in sys.modules; "
+        "assert not any(name.startswith('aol_llm.ui') for name in sys.modules)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
         cwd=ROOT,
         check=False,
         capture_output=True,

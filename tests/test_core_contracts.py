@@ -14,6 +14,7 @@ from aol_llm.core.types import (
     Prompt,
     PromptVersion,
     ProviderConfig,
+    ProviderResponseMetadata,
     StreamChunk,
     TokenUsage,
 )
@@ -130,11 +131,21 @@ def test_provider_config_and_stream_chunk_shapes() -> None:
         available_models=["claude-sonnet-4-6"],
     )
     usage = TokenUsage(input_tokens=10, output_tokens=20, model=config.default_model)
-    chunk = StreamChunk(text="", done=True, usage=usage)
+    metadata = ProviderResponseMetadata(
+        model="claude-reported",
+        response_id="response-id",
+    )
+    chunk = StreamChunk(
+        text="",
+        done=True,
+        usage=usage,
+        response_metadata=metadata,
+    )
 
     assert config.kind == "anthropic"
     assert chunk.done is True
     assert chunk.usage == usage
+    assert chunk.response_metadata == metadata
 
 
 def test_provider_errors_share_base_class() -> None:

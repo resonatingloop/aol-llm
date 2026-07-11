@@ -39,6 +39,7 @@ src/aol_llm/core/types.py
   Prompt
   PromptVersion
   ProviderConfig
+  ProviderResponseMetadata
   TokenUsage
   StreamChunk
 
@@ -49,7 +50,12 @@ src/aol_llm/core/pricing.py
   estimate_cost_usd
 
 src/aol_llm/core/requests.py
-  normalize_messages
+  NormalizedChatRequest
+  normalize_chat_request
+
+src/aol_llm/generation.py
+  GenerationResult
+  generate
 
 src/aol_llm/prompt_assembly.py
   AssembledPrompt
@@ -82,6 +88,12 @@ caching with `5m` or `1h` TTL is configured inside the Anthropic adapter, not
 through the shared provider protocol. Cache creation/read token counts are
 normalized in `TokenUsage` for cost calculation and persisted on assistant
 messages when reported.
+
+Final stream chunks may also carry normalized provider-reported model and
+response ids in `ProviderResponseMetadata`. The stateless generation facade
+collects a stream into text, usage, cost, and requested-versus-reported
+provenance without importing Textual or owning storage, prompts, secrets,
+retries, or cancellation.
 
 Stored message roles remain `user` and `assistant`. UI-facing reply names are
 presentation metadata resolved from the conversation override or buddy name.

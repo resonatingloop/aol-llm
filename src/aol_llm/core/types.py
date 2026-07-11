@@ -129,7 +129,14 @@ class TokenUsage:
 
 
 @dataclass(frozen=True)
+class ProviderResponseMetadata:
+    model: str | None
+    response_id: str | None
+
+
+@dataclass(frozen=True)
 class StreamChunk:
     text: str
     done: bool
     usage: TokenUsage | None = None
+    response_metadata: ProviderResponseMetadata | None = None

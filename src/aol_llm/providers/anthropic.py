@@ -9,6 +9,7 @@ from aol_llm.core.errors import AuthError, ContentFilterError, UnknownProviderEr
 from aol_llm.core.types import (
     Message,
     ProviderConfig,
+    ProviderResponseMetadata,
     StreamChunk,
     TokenUsage,
 )
@@ -73,6 +74,8 @@ class AnthropicProvider:
         }
         input_tokens: int | None = None
         output_tokens: int | None = None
+        reported_model: str | None = None
+        response_id: str | None = None
         cache_creation_5m_input_tokens = 0
         cache_creation_1h_input_tokens = 0
         cache_read_input_tokens = 0
@@ -89,7 +92,10 @@ class AnthropicProvider:
                     async for event in iter_sse_json(response):
                         event_type = event.get("type")
                         if event_type == "message_start":
-                            usage = event.get("message", {}).get("usage", {})
+                            message = event.get("message", {})
+                            reported_model = _optional_str(message.get("model"))
+                            response_id = _optional_str(message.get("id"))
+                            usage = message.get("usage", {})
                             input_tokens = _optional_int(usage.get("input_tokens"))
                         elif event_type == "content_block_delta":
                             delta = event.get("delta", {})
@@ -147,6 +153,10 @@ class AnthropicProvider:
                                     cache_creation_1h_input_tokens=cache_creation_1h_input_tokens,
                                     cache_read_input_tokens=cache_read_input_tokens,
                                 ),
+                                response_metadata=ProviderResponseMetadata(
+                                    model=reported_model,
+                                    response_id=response_id,
+                                ),
                             )
                             return
         except httpx.RequestError as error:
@@ -157,6 +167,10 @@ class AnthropicProvider:
 
 def _optional_int(value: object) -> int | None:
     return value if isinstance(value, int) else None
+
+
+def _optional_str(value: object) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def _supports_adaptive_thinking(model: str) -> bool:

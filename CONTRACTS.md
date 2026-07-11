@@ -151,10 +151,17 @@ class TokenUsage:
     cache_read_input_tokens: int | None = None
 
 @dataclass(frozen=True)
+class ProviderResponseMetadata:
+    model: str | None                # provider-reported model, when available
+    response_id: str | None          # provider response/message id, when available
+
+@dataclass(frozen=True)
 class StreamChunk:
     text: str                        # incremental text; may be ""
     done: bool                       # True only on final chunk
     usage: TokenUsage | None = None  # populated iff done=True
+    response_metadata: ProviderResponseMetadata | None = None
+                                      # optional; final chunk only
 ```
 
 ## provider interface
@@ -178,12 +185,45 @@ class Provider(Protocol):
 contract guarantees a Provider must satisfy:
 - yields at least one chunk
 - the FINAL chunk has `done=True` and a non-None `usage`
-- non-final chunks have `done=False` and `usage=None`
+- non-final chunks have `done=False`, `usage=None`, and `response_metadata=None`
+- provider-reported model and response ids are normalized into final-chunk
+  `response_metadata` when the provider exposes them
 - on error, raises a subclass of `ProviderError` (no silent failure, no None returns)
 - never mutates the input `messages` list
 - never returns provider-native types (no `anthropic.MessageStream` leaking upward)
 - keeps provider-specific controls out of the shared interface. Anthropic cache
   marker emission is Anthropic-adapter-internal.
+
+## stateless generation facade
+
+`src/aol_llm/generation.py` exposes a UI- and persistence-independent
+`generate(...)` function for non-Textual consumers. It accepts an explicit
+`ProviderConfig`, API key, and `NormalizedChatRequest`, then constructs the
+provider, collects one complete stream, and returns a frozen `GenerationResult`.
+
+`GenerationResult` contains:
+
+```python
+@dataclass(frozen=True)
+class GenerationResult:
+    text: str
+    usage: TokenUsage
+    cost_usd: float | None
+    provider_id: str
+    provider_kind: ProviderKind
+    requested_model: str
+    reported_model: str | None
+    provider_response_id: str | None
+```
+
+Requested model provenance remains distinct from provider-reported model
+metadata. Cost estimation continues to use normalized `TokenUsage.model` and
+the vendored rate card. Unknown or explicitly unpriced models return
+`cost_usd=None`; generation still succeeds.
+
+The facade owns no storage, prompt assembly, secret lookup, retry, cancellation,
+or UI behavior. Provider errors and task cancellation propagate unchanged. It
+does not import `aol_llm.ui` or Textual.
 
 ## error taxonomy
 
