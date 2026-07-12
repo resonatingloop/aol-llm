@@ -18,12 +18,22 @@ from aol_llm.providers._http import (
     raise_for_provider_status,
     translate_httpx_error,
 )
+from aol_llm.providers.openai_responses import (
+    OpenAIResponseOptions,
+    stream_openai_response,
+)
 
 
 class OpenAICompatibleProvider:
-    def __init__(self, config: ProviderConfig, api_key: str | None) -> None:
+    def __init__(
+        self,
+        config: ProviderConfig,
+        api_key: str | None,
+        response_options: OpenAIResponseOptions | None = None,
+    ) -> None:
         self.config = config
         self._api_key = api_key
+        self._response_options = response_options
 
     async def stream(
         self,
@@ -37,6 +47,23 @@ class OpenAICompatibleProvider:
             raise UnknownProviderError("OpenAI-compatible provider requires a base_url")
 
         is_openai_api = _is_openai_api(self.config.base_url)
+        if self._response_options is not None:
+            if not is_openai_api:
+                raise UnknownProviderError(
+                    "OpenAI Responses options require the api.openai.com base URL"
+                )
+            async for chunk in stream_openai_response(
+                config=self.config,
+                api_key=self._api_key,
+                options=self._response_options,
+                messages=messages,
+                system=system,
+                model=model,
+                max_output_tokens=max_output_tokens,
+            ):
+                yield chunk
+            return
+
         payload_messages = []
         if system is not None:
             payload_messages.append(

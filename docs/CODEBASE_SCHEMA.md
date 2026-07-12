@@ -281,11 +281,13 @@ src/aol_llm/providers/registry.py
 src/aol_llm/providers/anthropic.py
   Anthropic Messages API
   top-level automatic prompt cache control
+  opt-in explicit stable system and rolling-history cache breakpoints
   Opus 4.8 adaptive thinking
   Opus 4.7/4.8 sampling-parameter omission
 
 src/aol_llm/providers/openai_compat.py
   OpenAI-compatible /chat/completions streaming
+  opt-in OpenAI Responses API delegation
   OpenAI API special casing:
     developer role for system prompt
     max_completion_tokens
@@ -294,6 +296,11 @@ src/aol_llm/providers/openai_compat.py
     system role
     max_tokens
     temperature included
+
+src/aol_llm/providers/openai_responses.py
+  OpenAI /responses streaming for opt-in provider controls
+  text verbosity and stable prompt cache key payload fields
+  Responses event and token-usage normalization
 
 src/aol_llm/providers/_http.py
   SSE parsing

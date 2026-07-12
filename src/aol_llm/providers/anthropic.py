@@ -30,10 +30,16 @@ class AnthropicProvider:
         config: ProviderConfig,
         api_key: str | None,
         prompt_cache_ttl: AnthropicCacheTTL | None = None,
+        stable_prefix_cache_ttl: AnthropicCacheTTL | None = None,
     ) -> None:
+        if prompt_cache_ttl is not None and stable_prefix_cache_ttl is not None:
+            raise ValueError(
+                "automatic and stable-prefix caching are mutually exclusive"
+            )
         self.config = config
         self._api_key = api_key
         self._prompt_cache_ttl = prompt_cache_ttl
+        self._stable_prefix_cache_ttl = stable_prefix_cache_ttl
 
     async def stream(
         self,
@@ -50,22 +56,28 @@ class AnthropicProvider:
             "model": model,
             "max_tokens": max_output_tokens,
             "stream": True,
-            "messages": [
-                {"role": message.role, "content": message.content}
-                for message in messages
-            ],
+            "messages": _payload_messages(
+                messages,
+                self._stable_prefix_cache_ttl,
+            ),
         }
         if _supports_adaptive_thinking(model):
             payload["thinking"] = {"type": "adaptive"}
         if not _rejects_sampling_parameters(model):
             payload["temperature"] = temperature
         if self._prompt_cache_ttl is not None:
-            cache_control = {"type": "ephemeral"}
-            if self._prompt_cache_ttl == "1h":
-                cache_control["ttl"] = self._prompt_cache_ttl
-            payload["cache_control"] = cache_control
+            payload["cache_control"] = _cache_control(self._prompt_cache_ttl)
         if system is not None:
-            payload["system"] = system
+            if self._stable_prefix_cache_ttl is None:
+                payload["system"] = system
+            else:
+                payload["system"] = [
+                    {
+                        "type": "text",
+                        "text": system,
+                        "cache_control": _cache_control(self._stable_prefix_cache_ttl),
+                    }
+                ]
 
         headers = {
             "x-api-key": self._api_key,
@@ -171,6 +183,38 @@ def _optional_int(value: object) -> int | None:
 
 def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _payload_messages(
+    messages: list[Message],
+    stable_prefix_cache_ttl: AnthropicCacheTTL | None,
+) -> list[dict[str, object]]:
+    payload_messages: list[dict[str, object]] = [
+        {"role": message.role, "content": message.content} for message in messages
+    ]
+    if stable_prefix_cache_ttl is None or len(messages) < 2:
+        return payload_messages
+
+    stable_index = len(messages) - 2
+    stable_message = messages[stable_index]
+    payload_messages[stable_index] = {
+        "role": stable_message.role,
+        "content": [
+            {
+                "type": "text",
+                "text": stable_message.content,
+                "cache_control": _cache_control(stable_prefix_cache_ttl),
+            }
+        ],
+    }
+    return payload_messages
+
+
+def _cache_control(ttl: AnthropicCacheTTL) -> dict[str, str]:
+    cache_control = {"type": "ephemeral"}
+    if ttl == "1h":
+        cache_control["ttl"] = ttl
+    return cache_control
 
 
 def _supports_adaptive_thinking(model: str) -> bool:

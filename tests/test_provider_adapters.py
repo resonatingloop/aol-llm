@@ -16,6 +16,7 @@ from aol_llm.core.types import Message, ProviderConfig, StreamChunk
 from aol_llm.providers.anthropic import ANTHROPIC_MESSAGES_URL, AnthropicProvider
 from aol_llm.providers.base import Provider
 from aol_llm.providers.openai_compat import OpenAICompatibleProvider
+from aol_llm.providers.openai_responses import OpenAIResponseOptions
 from aol_llm.providers.registry import build_provider
 
 
@@ -240,6 +241,91 @@ async def test_anthropic_provider_adds_1h_prompt_cache_control_and_usage() -> No
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_anthropic_provider_caches_stable_system_and_history_prefix() -> None:
+    route = respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
+                {"type": "content_block_delta", "delta": {"text": "hi"}},
+                {"type": "message_delta", "usage": {"output_tokens": 5}},
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = AnthropicProvider(
+        config=anthropic_config(),
+        api_key="test-key",
+        stable_prefix_cache_ttl="1h",
+    )
+    messages = [
+        make_message(),
+        Message(
+            id="assistant-message",
+            conversation_id="conversation-id",
+            role="assistant",
+            content="prior answer",
+            created_at=datetime.now(UTC),
+        ),
+        Message(
+            id="current-trigger",
+            conversation_id="conversation-id",
+            role="user",
+            content="new question\n\n[Room turn instruction]\nRespond once.",
+            created_at=datetime.now(UTC),
+        ),
+    ]
+
+    chunks = [
+        chunk
+        async for chunk in provider.stream(
+            messages=messages,
+            system="Stable persona and room instructions.",
+            model=provider.config.default_model,
+        )
+    ]
+
+    assert chunks[-1].done is True
+    payload = json.loads(route.calls.last.request.content)
+    assert "cache_control" not in payload
+    assert payload["system"] == [
+        {
+            "type": "text",
+            "text": "Stable persona and room instructions.",
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+        }
+    ]
+    assert payload["messages"] == [
+        {"role": "user", "content": "hello"},
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "prior answer",
+                    "cache_control": {"type": "ephemeral", "ttl": "1h"},
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "content": "new question\n\n[Room turn instruction]\nRespond once.",
+        },
+    ]
+
+
+def test_anthropic_cache_strategies_are_mutually_exclusive() -> None:
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        AnthropicProvider(
+            config=anthropic_config(),
+            api_key="test-key",
+            prompt_cache_ttl="5m",
+            stable_prefix_cache_ttl="1h",
+        )
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_anthropic_opus_4_7_omits_temperature() -> None:
     route = respx.post(ANTHROPIC_MESSAGES_URL).mock(
         return_value=httpx.Response(
@@ -360,6 +446,67 @@ async def test_openai_api_uses_max_completion_tokens() -> None:
     ]
     assert "temperature" not in payload
     assert "max_tokens" not in payload
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_openai_api_responses_supports_verbosity_and_prompt_caching() -> None:
+    route = respx.post("https://api.openai.com/v1/responses").mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"type": "response.output_text.delta", "delta": "hi"},
+                {
+                    "type": "response.completed",
+                    "response": {
+                        "id": "resp-provider-123",
+                        "model": "gpt-5.6-sol",
+                        "usage": {"input_tokens": 17, "output_tokens": 19},
+                    },
+                },
+            ),
+        )
+    )
+    provider = OpenAICompatibleProvider(
+        config=openai_api_config(),
+        api_key="test-key",
+        response_options=OpenAIResponseOptions(
+            text_verbosity="medium",
+            prompt_cache_key="discordant:sol",
+        ),
+    )
+
+    chunks = await collect(provider)
+
+    assert [chunk.text for chunk in chunks] == ["hi", ""]
+    assert chunks[-1].usage is not None
+    assert chunks[-1].usage.input_tokens == 17
+    assert chunks[-1].usage.output_tokens == 19
+    assert chunks[-1].response_metadata is not None
+    assert chunks[-1].response_metadata.model == "gpt-5.6-sol"
+    assert chunks[-1].response_metadata.response_id == "resp-provider-123"
+    payload = json.loads(route.calls.last.request.content)
+    assert payload == {
+        "model": "gpt-5",
+        "input": [{"role": "user", "content": "hello"}],
+        "stream": True,
+        "max_output_tokens": 4096,
+        "instructions": "You are concise.",
+        "text": {"verbosity": "medium"},
+        "prompt_cache_key": "discordant:sol",
+    }
+
+
+@pytest.mark.asyncio
+async def test_responses_options_reject_non_openai_compatible_host() -> None:
+    provider = OpenAICompatibleProvider(
+        config=openai_config(),
+        api_key="test-key",
+        response_options=OpenAIResponseOptions(text_verbosity="medium"),
+    )
+
+    with pytest.raises(UnknownProviderError, match="api.openai.com"):
+        await collect(provider)
 
 
 @respx.mock
