@@ -36,6 +36,21 @@
       "priced": true,
       "upstream_model": "gpt-5"
     },
+    "gpt-5.6-luna": {
+      "priced": false,
+      "reason": "missing_from_litellm_snapshot",
+      "upstream_model": null
+    },
+    "gpt-5.6-sol": {
+      "priced": false,
+      "reason": "missing_from_litellm_snapshot",
+      "upstream_model": null
+    },
+    "gpt-5.6-terra": {
+      "priced": false,
+      "reason": "missing_from_litellm_snapshot",
+      "upstream_model": null
+    },
     "grok-4.3": {
       "input_per_mtok": 1.25,
       "output_per_mtok": 2.5,

@@ -43,7 +43,12 @@ DEFAULT_PROVIDER_MODELS = {
         "claude-sonnet-4-6",
         "claude-sonnet-4-5-20250929",
     ],
-    "openai": ["gpt-5"],
+    "openai": [
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5",
+    ],
     "mistral": ["mistral-small-2603"],
     "xai": ["grok-4.3"],
 }

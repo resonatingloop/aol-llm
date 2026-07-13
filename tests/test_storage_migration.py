@@ -56,7 +56,7 @@ def test_all_migrations_add_buddy_prompt_tables_and_seed_defaults() -> None:
     }
     assert connection.execute("SELECT COUNT(*) FROM prompts").fetchone()[0] == 1
     assert connection.execute("SELECT COUNT(*) FROM prompt_versions").fetchone()[0] == 1
-    assert connection.execute("SELECT COUNT(*) FROM buddies").fetchone()[0] == 3
+    assert connection.execute("SELECT COUNT(*) FROM buddies").fetchone()[0] == 6
     assert (
         connection.execute(
             """
@@ -79,6 +79,12 @@ def test_all_migrations_add_buddy_prompt_tables_and_seed_defaults() -> None:
         ).fetchone()[0]
         == 1
     )
+    assert {
+        row[0]
+        for row in connection.execute(
+            "SELECT model FROM buddies WHERE provider_id = 'openai'"
+        )
+    } == {"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
     memory_columns = {
         row[1] for row in connection.execute("PRAGMA table_info('buddy_memories')")
     }
@@ -117,6 +123,30 @@ def test_all_migrations_add_buddy_prompt_tables_and_seed_defaults() -> None:
         "failure_reason",
         "created_at",
     }
+
+
+def test_gpt_5_6_migration_does_not_duplicate_archived_buddies() -> None:
+    connection = sqlite3.connect(":memory:")
+    apply_all_migrations(connection)
+    connection.execute("UPDATE buddies SET archived = 1 WHERE model = 'gpt-5.6-sol'")
+
+    migration = pathlib.Path(
+        "src/aol_llm/storage/migrations/008_openai_gpt_5_6.sql"
+    ).read_text()
+    connection.executescript(migration)
+
+    assert (
+        connection.execute(
+            "SELECT COUNT(*) FROM buddies WHERE model = 'gpt-5.6-sol'"
+        ).fetchone()[0]
+        == 1
+    )
+    assert (
+        connection.execute(
+            "SELECT archived FROM buddies WHERE model = 'gpt-5.6-sol'"
+        ).fetchone()[0]
+        == 1
+    )
 
 
 def test_buddy_memory_cascades_with_buddy_delete() -> None:

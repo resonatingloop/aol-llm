@@ -31,6 +31,7 @@ def test_init_db_applies_migrations_idempotently(db_path: Path) -> None:
         "005_anthropic_fable_5",
         "006_buddy_memories_and_cache_usage",
         "007_memory_distill_runs",
+        "008_openai_gpt_5_6",
     ]
 
 

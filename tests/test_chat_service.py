@@ -215,6 +215,9 @@ def test_init_seeds_buddies_for_configured_provider_defaults(tmp_path: Path) -> 
         ("anthropic", "claude-fable-5"),
         ("anthropic", "claude-opus-4-8"),
         ("openai", "gpt-5"),
+        ("openai", "gpt-5.6-sol"),
+        ("openai", "gpt-5.6-terra"),
+        ("openai", "gpt-5.6-luna"),
         ("mistral", "mistral-small-2603"),
         ("xai", "grok-4.3"),
     }
@@ -485,6 +488,21 @@ def test_model_choices_include_current_anthropic_models(tmp_path: Path) -> None:
         ("anthropic", "claude-opus-4-7"),
         ("anthropic", "claude-sonnet-4-6"),
         ("anthropic", "claude-sonnet-4-5-20250929"),
+    ]
+
+
+def test_model_choices_include_current_openai_models() -> None:
+    service = ChatService(app_config=default_config())
+
+    assert [
+        choice.model
+        for choice in service.model_choices()
+        if choice.provider_id == "openai"
+    ] == [
+        "gpt-5",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
     ]
 
 

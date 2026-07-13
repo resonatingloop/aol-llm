@@ -364,6 +364,7 @@ current migrations:
 - `005_anthropic_fable_5.sql`
 - `006_buddy_memories_and_cache_usage.sql`
 - `007_memory_distill_runs.sql`
+- `008_openai_gpt_5_6.sql`
 
 ## storage layer contract
 
