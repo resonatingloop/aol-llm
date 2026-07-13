@@ -21,6 +21,7 @@ from aol_llm.providers._http import (
 )
 
 TextVerbosity = Literal["low", "medium", "high"]
+OpenAIReasoningEffort = Literal["none", "low", "medium", "high", "xhigh", "max"]
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,10 @@ class OpenAIResponseOptions:
 
     text_verbosity: TextVerbosity | None = None
     prompt_cache_key: str | None = None
+    reasoning_effort: OpenAIReasoningEffort | None = None
+    safety_identifier: str | None = None
+    store: bool = False
+    request_timeout_seconds: float = 60.0
 
 
 async def stream_openai_response(
@@ -50,6 +55,7 @@ async def stream_openai_response(
         ],
         "stream": True,
         "max_output_tokens": max_output_tokens,
+        "store": options.store,
     }
     if system is not None:
         payload["instructions"] = system
@@ -57,13 +63,17 @@ async def stream_openai_response(
         payload["text"] = {"verbosity": options.text_verbosity}
     if options.prompt_cache_key is not None:
         payload["prompt_cache_key"] = options.prompt_cache_key
+    if options.reasoning_effort is not None:
+        payload["reasoning"] = {"effort": options.reasoning_effort}
+    if options.safety_identifier is not None:
+        payload["safety_identifier"] = options.safety_identifier
 
     headers = {"content-type": "application/json"}
     if api_key:
         headers["authorization"] = f"Bearer {api_key}"
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=options.request_timeout_seconds) as client:
             async with client.stream(
                 "POST",
                 f"{config.base_url.rstrip('/')}/responses",
@@ -78,7 +88,7 @@ async def stream_openai_response(
                         if isinstance(text, str) and text:
                             yield StreamChunk(text=text, done=False)
                         continue
-                    if event_type == "response.completed":
+                    if event_type in {"response.completed", "response.incomplete"}:
                         completed = event.get("response")
                         if not isinstance(completed, dict):
                             raise UnknownProviderError(
@@ -89,17 +99,58 @@ async def stream_openai_response(
                             raise UnknownProviderError(
                                 "OpenAI response was missing token usage"
                             )
+                        input_tokens = _required_int(usage.get("input_tokens"))
+                        input_details = usage.get("input_tokens_details")
+                        cache_read_input_tokens: int | None = None
+                        cache_write_input_tokens: int | None = None
+                        if isinstance(input_details, dict):
+                            cache_read_input_tokens = _optional_int(
+                                input_details.get("cached_tokens")
+                            )
+                            cache_write_input_tokens = _optional_int(
+                                input_details.get("cache_write_tokens")
+                            )
+                        ordinary_input_tokens = (
+                            input_tokens
+                            - (cache_read_input_tokens or 0)
+                            - (cache_write_input_tokens or 0)
+                        )
+                        if ordinary_input_tokens < 0:
+                            raise UnknownProviderError(
+                                "OpenAI cache token counts exceeded total input tokens"
+                            )
+                        incomplete_details = completed.get("incomplete_details")
+                        incomplete_reason = (
+                            _optional_str(incomplete_details.get("reason"))
+                            if isinstance(incomplete_details, dict)
+                            else None
+                        )
+                        fallback_reason = (
+                            "incomplete"
+                            if event_type == "response.incomplete"
+                            else "completed"
+                        )
                         yield StreamChunk(
                             text="",
                             done=True,
                             usage=TokenUsage(
-                                input_tokens=_required_int(usage.get("input_tokens")),
+                                input_tokens=ordinary_input_tokens,
                                 output_tokens=_required_int(usage.get("output_tokens")),
                                 model=model,
+                                cache_read_input_tokens=cache_read_input_tokens,
+                                cache_write_input_tokens=cache_write_input_tokens,
                             ),
                             response_metadata=ProviderResponseMetadata(
                                 model=_optional_str(completed.get("model")),
                                 response_id=_optional_str(completed.get("id")),
+                                termination_reason=(
+                                    incomplete_reason
+                                    or _optional_str(completed.get("status"))
+                                    or fallback_reason
+                                ),
+                                service_tier=_optional_str(
+                                    completed.get("service_tier")
+                                ),
                             ),
                         )
                         return
@@ -115,6 +166,10 @@ def _required_int(value: object) -> int:
     if not isinstance(value, int):
         raise UnknownProviderError("provider usage was missing token counts")
     return value
+
+
+def _optional_int(value: object) -> int | None:
+    return value if isinstance(value, int) else None
 
 
 def _optional_str(value: object) -> str | None:

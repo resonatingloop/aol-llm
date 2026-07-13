@@ -85,6 +85,8 @@ def successful_provider() -> FakeProvider:
                 response_metadata=ProviderResponseMetadata(
                     model="reported-model",
                     response_id="provider-response-id",
+                    termination_reason="end_turn",
+                    service_tier="standard",
                 ),
             ),
         )
@@ -122,6 +124,8 @@ async def test_generate_collects_text_usage_cost_and_provenance() -> None:
     assert result.requested_model == "requested-model"
     assert result.reported_model == "reported-model"
     assert result.provider_response_id == "provider-response-id"
+    assert result.termination_reason == "end_turn"
+    assert result.service_tier == "standard"
 
 
 @pytest.mark.asyncio

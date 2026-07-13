@@ -22,6 +22,7 @@ from aol_llm.providers._http import (
 ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 AnthropicCacheTTL = Literal["5m", "1h"]
+AnthropicEffort = Literal["low", "medium", "high", "xhigh", "max"]
 
 
 class AnthropicProvider:
@@ -31,6 +32,8 @@ class AnthropicProvider:
         api_key: str | None,
         prompt_cache_ttl: AnthropicCacheTTL | None = None,
         stable_prefix_cache_ttl: AnthropicCacheTTL | None = None,
+        effort: AnthropicEffort | None = None,
+        request_timeout_seconds: float = 60.0,
     ) -> None:
         if prompt_cache_ttl is not None and stable_prefix_cache_ttl is not None:
             raise ValueError(
@@ -40,6 +43,8 @@ class AnthropicProvider:
         self._api_key = api_key
         self._prompt_cache_ttl = prompt_cache_ttl
         self._stable_prefix_cache_ttl = stable_prefix_cache_ttl
+        self._effort = effort
+        self._request_timeout_seconds = request_timeout_seconds
 
     async def stream(
         self,
@@ -65,6 +70,8 @@ class AnthropicProvider:
             payload["thinking"] = {"type": "adaptive"}
         if not _rejects_sampling_parameters(model):
             payload["temperature"] = temperature
+        if self._effort is not None:
+            payload["output_config"] = {"effort": self._effort}
         if self._prompt_cache_ttl is not None:
             payload["cache_control"] = _cache_control(self._prompt_cache_ttl)
         if system is not None:
@@ -91,9 +98,13 @@ class AnthropicProvider:
         cache_creation_5m_input_tokens = 0
         cache_creation_1h_input_tokens = 0
         cache_read_input_tokens = 0
+        termination_reason: str | None = None
+        service_tier: str | None = None
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(
+                timeout=self._request_timeout_seconds
+            ) as client:
                 async with client.stream(
                     "POST",
                     ANTHROPIC_MESSAGES_URL,
@@ -109,6 +120,9 @@ class AnthropicProvider:
                             response_id = _optional_str(message.get("id"))
                             usage = message.get("usage", {})
                             input_tokens = _optional_int(usage.get("input_tokens"))
+                            service_tier = (
+                                _optional_str(usage.get("service_tier")) or service_tier
+                            )
                         elif event_type == "content_block_delta":
                             delta = event.get("delta", {})
                             text = delta.get("text")
@@ -123,8 +137,16 @@ class AnthropicProvider:
                                 raise ContentFilterError(
                                     "Anthropic refused the request"
                                 )
+                            if isinstance(delta, dict):
+                                termination_reason = (
+                                    _optional_str(delta.get("stop_reason"))
+                                    or termination_reason
+                                )
                             usage = event.get("usage", {})
                             output_tokens = _optional_int(usage.get("output_tokens"))
+                            service_tier = (
+                                _optional_str(usage.get("service_tier")) or service_tier
+                            )
                             cache_creation = usage.get("cache_creation")
                             if isinstance(cache_creation, dict):
                                 cache_creation_5m_input_tokens = (
@@ -168,6 +190,8 @@ class AnthropicProvider:
                                 response_metadata=ProviderResponseMetadata(
                                     model=reported_model,
                                     response_id=response_id,
+                                    termination_reason=termination_reason,
+                                    service_tier=service_tier,
                                 ),
                             )
                             return
@@ -222,4 +246,4 @@ def _supports_adaptive_thinking(model: str) -> bool:
 
 
 def _rejects_sampling_parameters(model: str) -> bool:
-    return model in {"claude-opus-4-8", "claude-opus-4-7"}
+    return model in {"claude-fable-5", "claude-opus-4-8", "claude-opus-4-7"}

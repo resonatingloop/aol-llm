@@ -178,7 +178,7 @@ def test_estimate_cost_usd_uses_per_million_token_rates() -> None:
     assert estimate_cost_usd(usage, rate_card) == 10.5
 
 
-def test_estimate_cost_usd_applies_prompt_cache_multipliers() -> None:
+def test_estimate_cost_usd_applies_anthropic_prompt_cache_multipliers() -> None:
     usage = TokenUsage(
         input_tokens=1_000_000,
         output_tokens=500_000,
@@ -190,6 +190,33 @@ def test_estimate_cost_usd_applies_prompt_cache_multipliers() -> None:
     rate_card = {"model-a": ModelPricing(input_per_mtok=4.0, output_per_mtok=20.0)}
 
     assert estimate_cost_usd(usage, rate_card) == 27.4
+
+
+def test_estimate_cost_usd_applies_generic_cache_write_multiplier() -> None:
+    usage = TokenUsage(
+        input_tokens=1_000_000,
+        output_tokens=500_000,
+        model="model-a",
+        cache_read_input_tokens=1_000_000,
+        cache_write_input_tokens=1_000_000,
+    )
+    rate_card = {"model-a": ModelPricing(input_per_mtok=4.0, output_per_mtok=20.0)}
+
+    assert estimate_cost_usd(usage, rate_card) == 19.4
+
+
+def test_estimate_cost_usd_rejects_overlapping_cache_write_fields() -> None:
+    usage = TokenUsage(
+        input_tokens=1,
+        output_tokens=1,
+        model="model-a",
+        cache_creation_5m_input_tokens=1,
+        cache_write_input_tokens=1,
+    )
+    rate_card = {"model-a": ModelPricing(input_per_mtok=4.0, output_per_mtok=20.0)}
+
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        estimate_cost_usd(usage, rate_card)
 
 
 def test_estimate_cost_usd_returns_none_for_unknown_models() -> None:

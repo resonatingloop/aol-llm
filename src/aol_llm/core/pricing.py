@@ -53,6 +53,13 @@ def estimate_cost_usd(
     pricing = rate_card.get(usage.model)
     if pricing is None:
         return None
+    if usage.cache_write_input_tokens is not None and (
+        usage.cache_creation_5m_input_tokens is not None
+        or usage.cache_creation_1h_input_tokens is not None
+    ):
+        raise ValueError(
+            "generic and Anthropic cache-write token fields are mutually exclusive"
+        )
 
     input_cost = usage.input_tokens * pricing.input_per_mtok / 1_000_000
     cache_creation_5m_cost = (
@@ -70,12 +77,19 @@ def estimate_cost_usd(
     cache_read_cost = (
         (usage.cache_read_input_tokens or 0) * pricing.input_per_mtok * 0.1 / 1_000_000
     )
+    cache_write_cost = (
+        (usage.cache_write_input_tokens or 0)
+        * pricing.input_per_mtok
+        * 1.25
+        / 1_000_000
+    )
     output_cost = usage.output_tokens * pricing.output_per_mtok / 1_000_000
     return (
         input_cost
         + cache_creation_5m_cost
         + cache_creation_1h_cost
         + cache_read_cost
+        + cache_write_cost
         + output_cost
     )
 

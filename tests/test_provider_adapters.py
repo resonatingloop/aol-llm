@@ -246,9 +246,18 @@ async def test_anthropic_provider_caches_stable_system_and_history_prefix() -> N
         return_value=httpx.Response(
             200,
             text=sse(
-                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
+                {
+                    "type": "message_start",
+                    "message": {
+                        "usage": {"input_tokens": 7, "service_tier": "standard"}
+                    },
+                },
                 {"type": "content_block_delta", "delta": {"text": "hi"}},
-                {"type": "message_delta", "usage": {"output_tokens": 5}},
+                {
+                    "type": "message_delta",
+                    "delta": {"stop_reason": "end_turn"},
+                    "usage": {"output_tokens": 5},
+                },
                 {"type": "message_stop"},
             ),
         )
@@ -257,6 +266,8 @@ async def test_anthropic_provider_caches_stable_system_and_history_prefix() -> N
         config=anthropic_config(),
         api_key="test-key",
         stable_prefix_cache_ttl="1h",
+        effort="high",
+        request_timeout_seconds=300,
     )
     messages = [
         make_message(),
@@ -281,13 +292,19 @@ async def test_anthropic_provider_caches_stable_system_and_history_prefix() -> N
         async for chunk in provider.stream(
             messages=messages,
             system="Stable persona and room instructions.",
-            model=provider.config.default_model,
+            model="claude-fable-5",
         )
     ]
 
     assert chunks[-1].done is True
+    assert chunks[-1].response_metadata is not None
+    assert chunks[-1].response_metadata.termination_reason == "end_turn"
+    assert chunks[-1].response_metadata.service_tier == "standard"
     payload = json.loads(route.calls.last.request.content)
     assert "cache_control" not in payload
+    assert "thinking" not in payload
+    assert payload["output_config"] == {"effort": "high"}
+    assert "temperature" not in payload
     assert payload["system"] == [
         {
             "type": "text",
@@ -461,7 +478,16 @@ async def test_openai_api_responses_supports_verbosity_and_prompt_caching() -> N
                     "response": {
                         "id": "resp-provider-123",
                         "model": "gpt-5.6-sol",
-                        "usage": {"input_tokens": 17, "output_tokens": 19},
+                        "status": "completed",
+                        "service_tier": "default",
+                        "usage": {
+                            "input_tokens": 17,
+                            "input_tokens_details": {
+                                "cached_tokens": 7,
+                                "cache_write_tokens": 5,
+                            },
+                            "output_tokens": 19,
+                        },
                     },
                 },
             ),
@@ -473,6 +499,9 @@ async def test_openai_api_responses_supports_verbosity_and_prompt_caching() -> N
         response_options=OpenAIResponseOptions(
             text_verbosity="medium",
             prompt_cache_key="discordant:sol",
+            reasoning_effort="medium",
+            safety_identifier="hmac-user-id",
+            request_timeout_seconds=180,
         ),
     )
 
@@ -480,21 +509,60 @@ async def test_openai_api_responses_supports_verbosity_and_prompt_caching() -> N
 
     assert [chunk.text for chunk in chunks] == ["hi", ""]
     assert chunks[-1].usage is not None
-    assert chunks[-1].usage.input_tokens == 17
+    assert chunks[-1].usage.input_tokens == 5
+    assert chunks[-1].usage.cache_read_input_tokens == 7
+    assert chunks[-1].usage.cache_write_input_tokens == 5
     assert chunks[-1].usage.output_tokens == 19
     assert chunks[-1].response_metadata is not None
     assert chunks[-1].response_metadata.model == "gpt-5.6-sol"
     assert chunks[-1].response_metadata.response_id == "resp-provider-123"
+    assert chunks[-1].response_metadata.termination_reason == "completed"
+    assert chunks[-1].response_metadata.service_tier == "default"
     payload = json.loads(route.calls.last.request.content)
     assert payload == {
         "model": "gpt-5",
         "input": [{"role": "user", "content": "hello"}],
         "stream": True,
         "max_output_tokens": 4096,
+        "store": False,
         "instructions": "You are concise.",
         "text": {"verbosity": "medium"},
         "prompt_cache_key": "discordant:sol",
+        "reasoning": {"effort": "medium"},
+        "safety_identifier": "hmac-user-id",
     }
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_openai_responses_preserves_unreported_cache_details_as_none() -> None:
+    respx.post("https://api.openai.com/v1/responses").mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {
+                    "type": "response.completed",
+                    "response": {
+                        "id": "response-id",
+                        "model": "gpt-5.6",
+                        "usage": {"input_tokens": 17, "output_tokens": 19},
+                    },
+                },
+            ),
+        )
+    )
+    provider = OpenAICompatibleProvider(
+        config=openai_api_config(),
+        api_key="test-key",
+        response_options=OpenAIResponseOptions(text_verbosity="medium"),
+    )
+
+    chunks = await collect(provider)
+
+    assert chunks[-1].usage is not None
+    assert chunks[-1].usage.input_tokens == 17
+    assert chunks[-1].usage.cache_read_input_tokens is None
+    assert chunks[-1].usage.cache_write_input_tokens is None
 
 
 @pytest.mark.asyncio

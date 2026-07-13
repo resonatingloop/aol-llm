@@ -85,12 +85,13 @@ src/aol_llm/providers/base.py
 Provider adapters must yield normalized `StreamChunk` objects and raise
 `ProviderError` subclasses at the provider boundary. Anthropic automatic prompt
 caching with `5m` or `1h` TTL is configured inside the Anthropic adapter, not
-through the shared provider protocol. Cache creation/read token counts are
-normalized in `TokenUsage` for cost calculation and persisted on assistant
-messages when reported.
+through the shared provider protocol. Cache creation/read token counts and
+disjoint OpenAI cache-write tokens are normalized in `TokenUsage` for cost
+calculation and persisted on assistant messages when reported.
 
-Final stream chunks may also carry normalized provider-reported model and
-response ids in `ProviderResponseMetadata`. The stateless generation facade
+Final stream chunks may also carry normalized provider-reported model,
+response ids, termination reasons, and service tiers in
+`ProviderResponseMetadata`. The stateless generation facade
 collects a stream into text, usage, cost, and requested-versus-reported
 provenance without importing Textual or owning storage, prompts, secrets,
 retries, or cancellation.

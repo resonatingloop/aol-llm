@@ -25,6 +25,8 @@ class GenerationResult:
     requested_model: str
     reported_model: str | None
     provider_response_id: str | None
+    termination_reason: str | None = None
+    service_tier: str | None = None
 
 
 async def generate(
@@ -70,6 +72,10 @@ async def generate(
             requested_model=request.model,
             reported_model=None if metadata is None else metadata.model,
             provider_response_id=None if metadata is None else metadata.response_id,
+            termination_reason=(
+                None if metadata is None else metadata.termination_reason
+            ),
+            service_tier=None if metadata is None else metadata.service_tier,
         )
 
     raise UnknownProviderError("provider stream ended without a final chunk")

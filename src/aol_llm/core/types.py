@@ -126,12 +126,15 @@ class TokenUsage:
     cache_creation_5m_input_tokens: int | None = None
     cache_creation_1h_input_tokens: int | None = None
     cache_read_input_tokens: int | None = None
+    cache_write_input_tokens: int | None = None
 
 
 @dataclass(frozen=True)
 class ProviderResponseMetadata:
     model: str | None
     response_id: str | None
+    termination_reason: str | None = None
+    service_tier: str | None = None
 
 
 @dataclass(frozen=True)

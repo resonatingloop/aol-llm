@@ -149,11 +149,15 @@ class TokenUsage:
     cache_creation_5m_input_tokens: int | None = None
     cache_creation_1h_input_tokens: int | None = None
     cache_read_input_tokens: int | None = None
+    cache_write_input_tokens: int | None = None
 
 @dataclass(frozen=True)
 class ProviderResponseMetadata:
     model: str | None                # provider-reported model, when available
     response_id: str | None          # provider response/message id, when available
+    termination_reason: str | None = None
+                                      # provider-normalized completion reason/status
+    service_tier: str | None = None  # provider-reported processing tier
 
 @dataclass(frozen=True)
 class StreamChunk:
@@ -186,8 +190,8 @@ contract guarantees a Provider must satisfy:
 - yields at least one chunk
 - the FINAL chunk has `done=True` and a non-None `usage`
 - non-final chunks have `done=False`, `usage=None`, and `response_metadata=None`
-- provider-reported model and response ids are normalized into final-chunk
-  `response_metadata` when the provider exposes them
+- provider-reported model, response ids, termination reasons, and service tiers
+  are normalized into final-chunk `response_metadata` when exposed
 - on error, raises a subclass of `ProviderError` (no silent failure, no None returns)
 - never mutates the input `messages` list
 - never returns provider-native types (no `anthropic.MessageStream` leaking upward)
@@ -214,6 +218,8 @@ class GenerationResult:
     requested_model: str
     reported_model: str | None
     provider_response_id: str | None
+    termination_reason: str | None = None
+    service_tier: str | None = None
 ```
 
 Requested model provenance remains distinct from provider-reported model
@@ -553,6 +559,14 @@ breakdown on assistant messages. `NULL` means the provider did not report that
 token class; `0` means it reported zero. Five-minute cache writes use 1.25x the
 base input-token rate, one-hour cache writes use 2x the base input-token rate,
 and cache reads use 0.1x the base input-token rate.
+
+OpenAI cache writes are normalized separately as `cache_write_input_tokens`;
+OpenAI cache reads use `cache_read_input_tokens`. `input_tokens` is normalized
+to the ordinary, non-cache input bucket by subtracting reported cache-write and
+cache-read tokens from the provider's total input count. These three OpenAI
+buckets are disjoint. OpenAI's generic cache-write field is never combined with
+Anthropic's 5-minute or 1-hour cache-creation fields for the same response, so
+cost and total-token calculations do not double-count cache tokens.
 
 Anthropic Claude Opus 4.8 uses the pinned model id `claude-opus-4-8`.
 Anthropic requests for Opus 4.8 enable adaptive thinking with
