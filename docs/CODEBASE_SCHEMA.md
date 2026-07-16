@@ -89,6 +89,12 @@ through the shared provider protocol. Cache creation/read token counts and
 disjoint OpenAI cache-write tokens are normalized in `TokenUsage` for cost
 calculation and persisted on assistant messages when reported.
 
+Provider-specific request deadlines also stay on concrete adapters rather than
+the shared `Provider.stream(...)` signature. `OpenAICompatibleProvider` accepts
+`request_timeout_seconds` for Chat Completions; Responses retains its timeout in
+`OpenAIResponseOptions`. Both default to 60 seconds when a consumer does not
+override them.
+
 Final stream chunks may also carry normalized provider-reported model,
 response ids, termination reasons, and service tiers in
 `ProviderResponseMetadata`. The stateless generation facade

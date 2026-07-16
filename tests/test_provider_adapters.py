@@ -369,6 +369,45 @@ async def test_anthropic_opus_4_7_omits_temperature() -> None:
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_anthropic_fable_uses_effort_cache_and_omits_temperature() -> None:
+    route = respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
+                {"type": "content_block_delta", "delta": {"text": "hi"}},
+                {"type": "message_delta", "usage": {"output_tokens": 5}},
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = AnthropicProvider(
+        config=anthropic_opus_config("claude-fable-5"),
+        api_key="test-key",
+        stable_prefix_cache_ttl="1h",
+        effort="high",
+        request_timeout_seconds=180,
+    )
+
+    await collect(provider)
+
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["model"] == "claude-fable-5"
+    assert payload["max_tokens"] == 4096
+    assert payload["stream"] is True
+    assert payload["output_config"] == {"effort": "high"}
+    assert payload["system"] == [
+        {
+            "type": "text",
+            "text": "You are concise.",
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+        }
+    ]
+    assert "temperature" not in payload
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_anthropic_fable_refusal_maps_to_content_filter_error() -> None:
     respx.post(ANTHROPIC_MESSAGES_URL).mock(
         return_value=httpx.Response(
@@ -437,7 +476,20 @@ async def test_openai_compatible_provider_streams_text_and_usage() -> None:
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_openai_api_uses_max_completion_tokens() -> None:
+async def test_openai_api_uses_max_completion_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_client = httpx.AsyncClient
+    seen_timeouts: list[float] = []
+
+    def recording_client(*, timeout: float) -> httpx.AsyncClient:
+        seen_timeouts.append(timeout)
+        return real_client(timeout=timeout)
+
+    monkeypatch.setattr(
+        "aol_llm.providers.openai_compat.httpx.AsyncClient",
+        recording_client,
+    )
     route = respx.post("https://api.openai.com/v1/chat/completions").mock(
         return_value=httpx.Response(
             200,
@@ -451,7 +503,11 @@ async def test_openai_api_uses_max_completion_tokens() -> None:
             + "data: [DONE]\n\n",
         )
     )
-    provider = OpenAICompatibleProvider(config=openai_api_config(), api_key="test-key")
+    provider = OpenAICompatibleProvider(
+        config=openai_api_config(),
+        api_key="test-key",
+        request_timeout_seconds=180,
+    )
 
     await collect(provider)
 
@@ -463,6 +519,7 @@ async def test_openai_api_uses_max_completion_tokens() -> None:
     ]
     assert "temperature" not in payload
     assert "max_tokens" not in payload
+    assert seen_timeouts == [180]
 
 
 @respx.mock

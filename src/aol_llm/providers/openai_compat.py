@@ -30,10 +30,12 @@ class OpenAICompatibleProvider:
         config: ProviderConfig,
         api_key: str | None,
         response_options: OpenAIResponseOptions | None = None,
+        request_timeout_seconds: float = 60.0,
     ) -> None:
         self.config = config
         self._api_key = api_key
         self._response_options = response_options
+        self._request_timeout_seconds = request_timeout_seconds
 
     async def stream(
         self,
@@ -92,7 +94,9 @@ class OpenAICompatibleProvider:
         response_id: str | None = None
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(
+                timeout=self._request_timeout_seconds
+            ) as client:
                 async with client.stream(
                     "POST",
                     f"{self.config.base_url.rstrip('/')}/chat/completions",
