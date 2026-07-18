@@ -12,6 +12,7 @@ from aol_llm.core.errors import (
     RateLimitError,
     UnknownProviderError,
 )
+from aol_llm.core.pricing import ModelPricing, estimate_cost_usd
 from aol_llm.core.types import Message, ProviderConfig, StreamChunk
 from aol_llm.providers.anthropic import ANTHROPIC_MESSAGES_URL, AnthropicProvider
 from aol_llm.providers.base import Provider
@@ -168,16 +169,18 @@ async def test_anthropic_provider_adds_5m_prompt_cache_control_when_enabled() ->
         return_value=httpx.Response(
             200,
             text=sse(
-                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
-                {"type": "content_block_delta", "delta": {"text": "hi"}},
                 {
-                    "type": "message_delta",
-                    "usage": {
-                        "output_tokens": 5,
-                        "cache_creation_input_tokens": 11,
-                        "cache_read_input_tokens": 13,
+                    "type": "message_start",
+                    "message": {
+                        "usage": {
+                            "input_tokens": 7,
+                            "cache_creation_input_tokens": 11,
+                            "cache_read_input_tokens": 13,
+                        }
                     },
                 },
+                {"type": "content_block_delta", "delta": {"text": "hi"}},
+                {"type": "message_delta", "usage": {"output_tokens": 5}},
                 {"type": "message_stop"},
             ),
         )
@@ -205,20 +208,22 @@ async def test_anthropic_provider_adds_1h_prompt_cache_control_and_usage() -> No
         return_value=httpx.Response(
             200,
             text=sse(
-                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
-                {"type": "content_block_delta", "delta": {"text": "hi"}},
                 {
-                    "type": "message_delta",
-                    "usage": {
-                        "output_tokens": 5,
-                        "cache_creation_input_tokens": 24,
-                        "cache_read_input_tokens": 13,
-                        "cache_creation": {
-                            "ephemeral_5m_input_tokens": 11,
-                            "ephemeral_1h_input_tokens": 13,
-                        },
+                    "type": "message_start",
+                    "message": {
+                        "usage": {
+                            "input_tokens": 7,
+                            "cache_creation_input_tokens": 24,
+                            "cache_read_input_tokens": 13,
+                            "cache_creation": {
+                                "ephemeral_5m_input_tokens": 11,
+                                "ephemeral_1h_input_tokens": 13,
+                            },
+                        }
                     },
                 },
+                {"type": "content_block_delta", "delta": {"text": "hi"}},
+                {"type": "message_delta", "usage": {"output_tokens": 5}},
                 {"type": "message_stop"},
             ),
         )
@@ -237,6 +242,83 @@ async def test_anthropic_provider_adds_1h_prompt_cache_control_and_usage() -> No
     assert chunks[-1].usage.cache_creation_5m_input_tokens == 11
     assert chunks[-1].usage.cache_creation_1h_input_tokens == 13
     assert chunks[-1].usage.cache_read_input_tokens == 13
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_anthropic_provider_attributes_aggregate_usage_to_configured_ttl() -> (
+    None
+):
+    respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {
+                    "type": "message_start",
+                    "message": {
+                        "usage": {
+                            "input_tokens": 7,
+                            "cache_creation_input_tokens": 24,
+                            "cache_read_input_tokens": 13,
+                        }
+                    },
+                },
+                {"type": "content_block_delta", "delta": {"text": "hi"}},
+                {"type": "message_delta", "usage": {"output_tokens": 5}},
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = AnthropicProvider(
+        config=anthropic_config(),
+        api_key="test-key",
+        stable_prefix_cache_ttl="1h",
+    )
+
+    chunks = await collect(provider)
+
+    usage = chunks[-1].usage
+    assert usage is not None
+    assert usage.cache_creation_5m_input_tokens == 0
+    assert usage.cache_creation_1h_input_tokens == 24
+    assert usage.cache_read_input_tokens == 13
+    rate_card = {usage.model: ModelPricing(input_per_mtok=4.0, output_per_mtok=20.0)}
+    assert estimate_cost_usd(usage, rate_card) == pytest.approx(0.0003252)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_anthropic_provider_rejects_inconsistent_cache_usage() -> None:
+    respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {
+                    "type": "message_start",
+                    "message": {
+                        "usage": {
+                            "input_tokens": 7,
+                            "cache_creation_input_tokens": 24,
+                            "cache_creation": {
+                                "ephemeral_5m_input_tokens": 11,
+                                "ephemeral_1h_input_tokens": 12,
+                            },
+                        }
+                    },
+                },
+                {"type": "message_delta", "usage": {"output_tokens": 5}},
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = AnthropicProvider(
+        config=anthropic_config(),
+        api_key="test-key",
+        prompt_cache_ttl="1h",
+    )
+
+    with pytest.raises(UnknownProviderError, match="does not match TTL breakdown"):
+        await collect(provider)
 
 
 @respx.mock

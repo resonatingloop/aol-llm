@@ -89,6 +89,15 @@ through the shared provider protocol. Cache creation/read token counts and
 disjoint OpenAI cache-write tokens are normalized in `TokenUsage` for cost
 calculation and persisted on assistant messages when reported.
 
+For Anthropic streams, input and cache usage are read from
+`message_start.message.usage`; later cumulative `message_delta.usage` fields are
+merged without erasing the start-event cache breakdown. When Anthropic reports
+both aggregate cache creation and the per-TTL breakdown, the adapter requires
+the aggregate to equal the 5-minute plus 1-hour buckets. When only the aggregate
+is present, it is assigned to the request's single configured cache TTL; the
+Anthropic default remains 5 minutes when no explicit TTL is configured. These
+buckets stay disjoint for cost calculation.
+
 Provider-specific request deadlines also stay on concrete adapters rather than
 the shared `Provider.stream(...)` signature. `OpenAICompatibleProvider` accepts
 `request_timeout_seconds` for Chat Completions; Responses retains its timeout in

@@ -119,9 +119,36 @@ class AnthropicProvider:
                             reported_model = _optional_str(message.get("model"))
                             response_id = _optional_str(message.get("id"))
                             usage = message.get("usage", {})
-                            input_tokens = _optional_int(usage.get("input_tokens"))
+                            reported_input_tokens = _optional_int(
+                                usage.get("input_tokens")
+                            )
+                            if reported_input_tokens is not None:
+                                input_tokens = reported_input_tokens
+                            reported_output_tokens = _optional_int(
+                                usage.get("output_tokens")
+                            )
+                            if reported_output_tokens is not None:
+                                output_tokens = reported_output_tokens
                             service_tier = (
                                 _optional_str(usage.get("service_tier")) or service_tier
+                            )
+                            (
+                                cache_creation_5m_input_tokens,
+                                cache_creation_1h_input_tokens,
+                                cache_read_input_tokens,
+                            ) = _merge_cache_usage(
+                                usage,
+                                configured_ttl=(
+                                    self._prompt_cache_ttl
+                                    or self._stable_prefix_cache_ttl
+                                ),
+                                cache_creation_5m_input_tokens=(
+                                    cache_creation_5m_input_tokens
+                                ),
+                                cache_creation_1h_input_tokens=(
+                                    cache_creation_1h_input_tokens
+                                ),
+                                cache_read_input_tokens=cache_read_input_tokens,
                             )
                         elif event_type == "content_block_delta":
                             delta = event.get("delta", {})
@@ -143,33 +170,31 @@ class AnthropicProvider:
                                     or termination_reason
                                 )
                             usage = event.get("usage", {})
-                            output_tokens = _optional_int(usage.get("output_tokens"))
+                            reported_output_tokens = _optional_int(
+                                usage.get("output_tokens")
+                            )
+                            if reported_output_tokens is not None:
+                                output_tokens = reported_output_tokens
                             service_tier = (
                                 _optional_str(usage.get("service_tier")) or service_tier
                             )
-                            cache_creation = usage.get("cache_creation")
-                            if isinstance(cache_creation, dict):
-                                cache_creation_5m_input_tokens = (
-                                    _optional_int(
-                                        cache_creation.get("ephemeral_5m_input_tokens")
-                                    )
-                                    or 0
-                                )
-                                cache_creation_1h_input_tokens = (
-                                    _optional_int(
-                                        cache_creation.get("ephemeral_1h_input_tokens")
-                                    )
-                                    or 0
-                                )
-                            else:
-                                cache_creation_5m_input_tokens = (
-                                    _optional_int(
-                                        usage.get("cache_creation_input_tokens")
-                                    )
-                                    or 0
-                                )
-                            cache_read_input_tokens = (
-                                _optional_int(usage.get("cache_read_input_tokens")) or 0
+                            (
+                                cache_creation_5m_input_tokens,
+                                cache_creation_1h_input_tokens,
+                                cache_read_input_tokens,
+                            ) = _merge_cache_usage(
+                                usage,
+                                configured_ttl=(
+                                    self._prompt_cache_ttl
+                                    or self._stable_prefix_cache_ttl
+                                ),
+                                cache_creation_5m_input_tokens=(
+                                    cache_creation_5m_input_tokens
+                                ),
+                                cache_creation_1h_input_tokens=(
+                                    cache_creation_1h_input_tokens
+                                ),
+                                cache_read_input_tokens=cache_read_input_tokens,
                             )
                         elif event_type == "message_stop":
                             if input_tokens is None or output_tokens is None:
@@ -207,6 +232,65 @@ def _optional_int(value: object) -> int | None:
 
 def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _merge_cache_usage(
+    usage: object,
+    *,
+    configured_ttl: AnthropicCacheTTL | None,
+    cache_creation_5m_input_tokens: int,
+    cache_creation_1h_input_tokens: int,
+    cache_read_input_tokens: int,
+) -> tuple[int, int, int]:
+    if not isinstance(usage, dict):
+        return (
+            cache_creation_5m_input_tokens,
+            cache_creation_1h_input_tokens,
+            cache_read_input_tokens,
+        )
+
+    reported_read = _optional_int(usage.get("cache_read_input_tokens"))
+    if reported_read is not None:
+        cache_read_input_tokens = reported_read
+
+    aggregate_creation = _optional_int(usage.get("cache_creation_input_tokens"))
+    cache_creation = usage.get("cache_creation")
+    if isinstance(cache_creation, dict):
+        reported_5m_value = _optional_int(
+            cache_creation.get("ephemeral_5m_input_tokens")
+        )
+        reported_1h_value = _optional_int(
+            cache_creation.get("ephemeral_1h_input_tokens")
+        )
+    else:
+        reported_5m_value = None
+        reported_1h_value = None
+
+    if reported_5m_value is not None or reported_1h_value is not None:
+        reported_5m = reported_5m_value or 0
+        reported_1h = reported_1h_value or 0
+        if (
+            aggregate_creation is not None
+            and aggregate_creation != reported_5m + reported_1h
+        ):
+            raise UnknownProviderError(
+                "Anthropic cache-creation usage total does not match TTL breakdown"
+            )
+        cache_creation_5m_input_tokens = reported_5m
+        cache_creation_1h_input_tokens = reported_1h
+    elif aggregate_creation is not None:
+        if configured_ttl == "1h":
+            cache_creation_5m_input_tokens = 0
+            cache_creation_1h_input_tokens = aggregate_creation
+        else:
+            cache_creation_5m_input_tokens = aggregate_creation
+            cache_creation_1h_input_tokens = 0
+
+    return (
+        cache_creation_5m_input_tokens,
+        cache_creation_1h_input_tokens,
+        cache_read_input_tokens,
+    )
 
 
 def _payload_messages(
