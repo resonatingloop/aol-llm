@@ -102,6 +102,14 @@ is present, it is assigned to the request's single configured cache TTL; the
 Anthropic default remains 5 minutes when no explicit TTL is configured. These
 buckets stay disjoint for cost calculation.
 
+Consumers using the explicit stable-prefix strategy may suppress its rolling
+history breakpoint while retaining the stable system breakpoint. The concrete
+`AnthropicProvider` constructor defaults to caching both; setting
+`cache_history_prefix=False` leaves message content unmarked but keeps the
+configured system block cache control. This provider-specific option does not
+change the shared `Provider.stream(...)` or stateless provider-factory
+signatures.
+
 Provider-specific request deadlines also stay on concrete adapters rather than
 the shared `Provider.stream(...)` signature. `OpenAICompatibleProvider` accepts
 `request_timeout_seconds` for Chat Completions; Responses retains its timeout in
@@ -308,7 +316,8 @@ src/aol_llm/providers/registry.py
 src/aol_llm/providers/anthropic.py
   Anthropic Messages API
   top-level automatic prompt cache control
-  opt-in explicit stable system and rolling-history cache breakpoints
+  opt-in explicit stable system and independently suppressible rolling-history
+  cache breakpoints
   Opus 4.8 adaptive thinking
   Opus 4.7/4.8 sampling-parameter omission
 

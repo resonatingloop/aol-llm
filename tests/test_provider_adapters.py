@@ -440,6 +440,63 @@ async def test_anthropic_provider_caches_stable_system_and_history_prefix() -> N
     ]
 
 
+@respx.mock
+@pytest.mark.asyncio
+async def test_anthropic_provider_can_cache_stable_system_without_history() -> None:
+    route = respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {
+                    "type": "message_start",
+                    "message": {"usage": {"input_tokens": 7}},
+                },
+                {"type": "content_block_delta", "delta": {"text": "hi"}},
+                {"type": "message_delta", "usage": {"output_tokens": 5}},
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = AnthropicProvider(
+        config=anthropic_config(),
+        api_key="test-key",
+        stable_prefix_cache_ttl="1h",
+        cache_history_prefix=False,
+    )
+    messages = [
+        make_message(),
+        Message(
+            id="current-trigger",
+            conversation_id="conversation-id",
+            role="user",
+            content="new question",
+            created_at=datetime.now(UTC),
+        ),
+    ]
+
+    _ = [
+        chunk
+        async for chunk in provider.stream(
+            messages=messages,
+            system="You are concise.",
+            model=provider.config.default_model,
+        )
+    ]
+
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["system"] == [
+        {
+            "type": "text",
+            "text": "You are concise.",
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+        }
+    ]
+    assert payload["messages"] == [
+        {"role": "user", "content": "hello"},
+        {"role": "user", "content": "new question"},
+    ]
+
+
 def test_anthropic_cache_strategies_are_mutually_exclusive() -> None:
     with pytest.raises(ValueError, match="mutually exclusive"):
         AnthropicProvider(

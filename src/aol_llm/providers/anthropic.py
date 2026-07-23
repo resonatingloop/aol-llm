@@ -32,6 +32,7 @@ class AnthropicProvider:
         api_key: str | None,
         prompt_cache_ttl: AnthropicCacheTTL | None = None,
         stable_prefix_cache_ttl: AnthropicCacheTTL | None = None,
+        cache_history_prefix: bool = True,
         effort: AnthropicEffort | None = None,
         adaptive_thinking: bool = True,
         request_timeout_seconds: float = 60.0,
@@ -44,6 +45,7 @@ class AnthropicProvider:
         self._api_key = api_key
         self._prompt_cache_ttl = prompt_cache_ttl
         self._stable_prefix_cache_ttl = stable_prefix_cache_ttl
+        self._cache_history_prefix = cache_history_prefix
         self._effort = effort
         self._adaptive_thinking = adaptive_thinking
         self._request_timeout_seconds = request_timeout_seconds
@@ -66,6 +68,7 @@ class AnthropicProvider:
             "messages": _payload_messages(
                 messages,
                 self._stable_prefix_cache_ttl,
+                self._cache_history_prefix,
             ),
         }
         if self._adaptive_thinking and _supports_adaptive_thinking(model):
@@ -298,11 +301,12 @@ def _merge_cache_usage(
 def _payload_messages(
     messages: list[Message],
     stable_prefix_cache_ttl: AnthropicCacheTTL | None,
+    cache_history_prefix: bool,
 ) -> list[dict[str, object]]:
     payload_messages: list[dict[str, object]] = [
         {"role": message.role, "content": message.content} for message in messages
     ]
-    if stable_prefix_cache_ttl is None or len(messages) < 2:
+    if stable_prefix_cache_ttl is None or not cache_history_prefix or len(messages) < 2:
         return payload_messages
 
     stable_index = len(messages) - 2
