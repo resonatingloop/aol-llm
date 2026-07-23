@@ -18,7 +18,7 @@ from aol_llm.providers.anthropic import ANTHROPIC_MESSAGES_URL, AnthropicProvide
 from aol_llm.providers.base import Provider
 from aol_llm.providers.openai_compat import OpenAICompatibleProvider
 from aol_llm.providers.openai_responses import OpenAIResponseOptions
-from aol_llm.providers.registry import build_provider
+from aol_llm.providers.registry import build_distiller_provider, build_provider
 
 
 def make_message() -> Message:
@@ -159,6 +159,33 @@ async def test_anthropic_opus_4_8_uses_adaptive_thinking_without_temperature() -
     assert [chunk.text for chunk in chunks] == ["hi", ""]
     payload = json.loads(route.calls.last.request.content)
     assert payload["thinking"] == {"type": "adaptive"}
+    assert "temperature" not in payload
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_anthropic_distiller_omits_adaptive_thinking() -> None:
+    route = respx.post(ANTHROPIC_MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            text=sse(
+                {"type": "message_start", "message": {"usage": {"input_tokens": 7}}},
+                {"type": "content_block_delta", "delta": {"text": "memory"}},
+                {"type": "message_delta", "usage": {"output_tokens": 5}},
+                {"type": "message_stop"},
+            ),
+        )
+    )
+    provider = build_distiller_provider(
+        anthropic_opus_config("claude-opus-4-8"),
+        "test-key",
+    )
+
+    chunks = await collect(provider)
+
+    assert [chunk.text for chunk in chunks] == ["memory", ""]
+    payload = json.loads(route.calls.last.request.content)
+    assert "thinking" not in payload
     assert "temperature" not in payload
 
 

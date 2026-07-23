@@ -454,6 +454,141 @@ def test_record_memory_distill_run_does_not_update_memory(db_path: Path) -> None
     assert db.get_buddy_memory(buddy.id, db_path) is None
 
 
+def test_latest_memory_distill_attempt_ignores_noop_runs(db_path: Path) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-a", db_path)
+    failed = db.record_memory_distill_run(
+        buddy_id=buddy.id,
+        provider_id="anthropic",
+        model="claude-opus-4-8",
+        mode="incremental",
+        status="failed",
+        path=db_path,
+        failure_reason="invalid_output: output is empty",
+    )
+    db.record_memory_distill_run(
+        buddy_id=buddy.id,
+        provider_id="anthropic",
+        model="claude-opus-4-8",
+        mode="incremental",
+        status="noop",
+        path=db_path,
+    )
+
+    assert db.latest_memory_distill_attempt(buddy.id, db_path) == failed
+
+    success = db.record_memory_distill_run(
+        buddy_id=buddy.id,
+        provider_id="anthropic",
+        model="claude-opus-4-8",
+        mode="incremental",
+        status="success",
+        path=db_path,
+    )
+
+    assert db.latest_memory_distill_attempt(buddy.id, db_path) == success
+
+
+def test_baseline_empty_buddy_memories_preserves_transcripts_and_enabled_state(
+    db_path: Path,
+) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-a", db_path)
+    first_conversation = db.create_conversation(
+        "First",
+        "anthropic",
+        "claude-a",
+        buddy_id=buddy.id,
+        path=db_path,
+    )
+    second_conversation = db.create_conversation(
+        "Second",
+        "anthropic",
+        "claude-a",
+        buddy_id=buddy.id,
+        path=db_path,
+    )
+    first_message = db.add_message(
+        first_conversation.id,
+        "user",
+        "old",
+        path=db_path,
+    )
+    second_message = db.add_message(
+        second_conversation.id,
+        "assistant",
+        "new",
+        path=db_path,
+    )
+    tied_created_at = "2026-07-21T12:00:00+00:00"
+    with db.get_connection(db_path) as connection:
+        connection.execute(
+            "UPDATE messages SET id = ?, created_at = ? WHERE id = ?",
+            ("message-a", tied_created_at, first_message.id),
+        )
+        connection.execute(
+            "UPDATE messages SET id = ?, created_at = ? WHERE id = ?",
+            ("message-z", tied_created_at, second_message.id),
+        )
+    db.upsert_buddy_memory(
+        buddy.id,
+        "  ",
+        path=db_path,
+        enabled=False,
+        suppress_injection=True,
+    )
+    runs_before = db.list_memory_distill_runs(buddy.id, db_path)
+
+    preview = db.preview_buddy_memory_baselines([buddy.id], db_path)
+    applied = db.baseline_empty_buddy_memories([buddy.id], db_path)
+
+    assert applied == preview
+    assert preview[0].conversation_count == 2
+    assert preview[0].message_count == 2
+    assert preview[0].memory_chars == 2
+    memory = db.get_buddy_memory(buddy.id, db_path)
+    assert memory is not None
+    assert memory.memory_text == ""
+    assert memory.enabled is False
+    assert memory.suppress_injection is False
+    assert memory.watermark_created_at == tied_created_at
+    assert memory.watermark_message_id == "message-z"
+    assert db.messages_newer_than_watermark_for_buddy(buddy.id, db_path) == []
+    assert db.list_messages(first_conversation.id, db_path)[0].content == "old"
+    assert db.list_messages(second_conversation.id, db_path)[0].content == "new"
+    assert db.list_memory_distill_runs(buddy.id, db_path) == runs_before
+
+
+def test_baseline_empty_buddy_memories_validates_batch_before_writing(
+    db_path: Path,
+) -> None:
+    empty = db.ensure_buddy("anthropic", "claude-empty", db_path)
+    nonempty = db.ensure_buddy("anthropic", "claude-nonempty", db_path)
+    for buddy in (empty, nonempty):
+        conversation = db.create_conversation(
+            "Chat",
+            buddy.provider_id,
+            buddy.model,
+            buddy_id=buddy.id,
+            path=db_path,
+        )
+        db.add_message(conversation.id, "user", "hello", path=db_path)
+    db.upsert_buddy_memory(nonempty.id, "Keep this.", path=db_path)
+
+    with pytest.raises(ValueError, match="memory is not empty"):
+        db.baseline_empty_buddy_memories([empty.id, nonempty.id], db_path)
+
+    assert db.get_buddy_memory(empty.id, db_path) is None
+    assert len(db.messages_newer_than_watermark_for_buddy(empty.id, db_path)) == 1
+
+
+def test_baseline_empty_buddy_memories_refuses_buddy_without_messages(
+    db_path: Path,
+) -> None:
+    buddy = db.ensure_buddy("anthropic", "claude-empty", db_path)
+
+    with pytest.raises(ValueError, match="has no messages"):
+        db.baseline_empty_buddy_memories([buddy.id], db_path)
+
+
 def test_delete_message_removes_only_that_message(db_path: Path) -> None:
     conversation = db.create_conversation("Chat", "anthropic", "model", path=db_path)
     first = db.add_message(conversation.id, "user", "hello", path=db_path)

@@ -23,7 +23,7 @@ from aol_llm.memory_distiller import (
 )
 from aol_llm.prompt_assembly import assemble_prompt
 from aol_llm.providers.base import Provider
-from aol_llm.providers.registry import build_provider
+from aol_llm.providers.registry import build_distiller_provider, build_provider
 from aol_llm.secrets import get_api_key
 from aol_llm.storage import db
 
@@ -77,9 +77,12 @@ class MemoryStatus:
     has_memory: bool
     enabled: bool
     suppressed: bool
+    auto_distill_paused: bool
 
     @property
     def label(self) -> str:
+        if self.auto_distill_paused:
+            return "memory failed / auto paused"
         if not self.has_memory:
             return "memory empty"
         if self.suppressed:
@@ -96,12 +99,14 @@ class ChatService:
         app_config: AppConfig | None = None,
         config_path: Path | None = None,
         provider_factory: ProviderFactory = build_provider,
+        distiller_provider_factory: ProviderFactory = build_distiller_provider,
         api_key_getter: ApiKeyGetter = get_api_key,
         rate_card: Mapping[str, ModelPricing] | None = None,
     ) -> None:
         self._db_path = db_path
         self._config = app_config or load_config(config_path)
         self._provider_factory = provider_factory
+        self._distiller_provider_factory = distiller_provider_factory
         self._api_key_getter = api_key_getter
         self._rate_card = load_rate_card() if rate_card is None else rate_card
         self._conversation_memories: dict[str, BuddyMemory | None] = {}
@@ -291,20 +296,35 @@ class ChatService:
             mode=mode,
             db_path=self._db_path,
             app_config=self._config,
-            provider_factory=self._provider_factory,
+            provider_factory=self._distiller_provider_factory,
             api_key_getter=self._api_key_getter,
             rate_card=self._rate_card,
         )
 
     def buddy_memory_status(self, buddy_id: str) -> MemoryStatus:
         memory = db.get_buddy_memory(buddy_id, self._db_path)
+        latest_attempt = db.latest_memory_distill_attempt(buddy_id, self._db_path)
+        auto_distill_paused = bool(
+            latest_attempt is not None
+            and latest_attempt.status == "failed"
+            and (latest_attempt.failure_reason or "").startswith("invalid_output:")
+        )
         if memory is None:
-            return MemoryStatus(has_memory=False, enabled=True, suppressed=False)
+            return MemoryStatus(
+                has_memory=False,
+                enabled=True,
+                suppressed=False,
+                auto_distill_paused=auto_distill_paused,
+            )
         return MemoryStatus(
             has_memory=bool(memory.memory_text.strip()),
             enabled=memory.enabled,
             suppressed=memory.suppress_injection,
+            auto_distill_paused=auto_distill_paused,
         )
+
+    def should_auto_distill_buddy(self, buddy_id: str) -> bool:
+        return not self.buddy_memory_status(buddy_id).auto_distill_paused
 
     def set_buddy_memory_enabled(
         self,

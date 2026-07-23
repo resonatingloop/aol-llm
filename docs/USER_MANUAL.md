@@ -171,6 +171,45 @@ uses Claude's automatic ephemeral prompt caching for future sends. The status
 footer shows cache reads as `r`, five-minute writes as `w5`, and one-hour writes
 as `w1h`.
 
+## Memory Distillation
+
+Memory is scoped to a buddy and is distilled from that buddy's chats. Turning
+memory off disables injection into future chats; it does not disable automatic
+distillation. Memory is frozen when a conversation is first used in the running
+app, so a newly distilled document appears in a new conversation (or after an
+app restart), not midway through the current one.
+
+If validation rejects a distiller response, the footer reports
+`memory failed / auto paused`. Automatic switch, archive, and quit retries stay
+paused so the same backlog cannot incur repeated provider calls. Use
+`/memory distill` or `/memory refactor` when you intentionally want to retry; a
+successful attempt resumes automatic distillation.
+
+For an owner-approved historical backlog that should be abandoned as memory
+input, close the app and run the recovery command from the repository. Dry run
+is the default, and `--buddy-id` can be repeated:
+
+```bash
+uv run python scripts/baseline_memory_backlog.py \
+  --buddy-id BUDDY_ID
+```
+
+Review the reported targets and transcript counts before applying. Apply
+requires a new private backup path and creates and verifies that backup before
+moving any watermarks:
+
+```bash
+uv run python scripts/baseline_memory_backlog.py \
+  --buddy-id BUDDY_ID \
+  --apply \
+  --backup ~/.local/share/aol-llm/backups/before-memory-baseline.db
+```
+
+The operation refuses nonempty memories and buddies without messages. It keeps
+all conversations and messages, leaves memory text empty, and makes only future
+messages eligible for distillation. Afterward, create one new exchange and run
+`/memory distill` as a canary before relying on automatic distillation.
+
 ## Keybindings
 
 <!-- BEGIN AUTOGEN:keybindings-table -->

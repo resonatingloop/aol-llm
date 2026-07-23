@@ -390,6 +390,9 @@ current migrations:
 - `commit_buddy_memory_distill(...) -> BuddyMemory`
 - `record_memory_distill_run(...) -> MemoryDistillRun`
 - `list_memory_distill_runs(buddy_id) -> list[MemoryDistillRun]`
+- `latest_memory_distill_attempt(buddy_id) -> MemoryDistillRun | None`
+- `preview_buddy_memory_baselines(buddy_ids) -> list[BuddyMemoryBaseline]`
+- `baseline_empty_buddy_memories(buddy_ids) -> list[BuddyMemoryBaseline]`
 - `buddy_exists(provider_id, model) -> bool` (includes archived buddies)
 - `create_prompt(...) -> Prompt`
 - `create_prompt_version(...) -> PromptVersion`
@@ -461,7 +464,10 @@ Distillation is per-buddy and oldest-first. Each batch sends the current memory
 document plus a transcript slice newer than the buddy watermark to the configured
 provider/model. The configured default is `anthropic / claude-opus-4-8`.
 Distiller traffic uses the normal provider adapter and pricing layer; there are
-no side-channel API calls.
+no side-channel API calls. Anthropic distiller requests omit adaptive thinking
+so the 4,096-token output budget remains available to the visible memory
+document. Ordinary Anthropic chat requests retain their configured adaptive
+thinking behavior.
 
 The distiller prompt artifact lives at
 `src/aol_llm/data/memory_distiller_prompt.md`. Runtime inputs are delimited as
@@ -477,6 +483,23 @@ thread warmth tags only on thread list items.
 
 No-op distillation is required when no messages are newer than the watermark.
 That path makes zero provider calls and records a `noop` distill run.
+
+When the latest provider-attempted run failed with an `invalid_output:` reason,
+automatic switch, archive, and quit triggers are paused for that buddy. No-op
+runs do not clear this state. Manual `/memory distill` and `/memory refactor`
+remain explicit retry paths; a successful provider-attempted run clears the
+pause. `/memory off` controls injection only and does not disable distillation.
+The UI reports this condition as `memory failed / auto paused`.
+
+The owner-operated `scripts/baseline_memory_backlog.py` utility is the sole
+exception for abandoning an already-selected historical backlog. It accepts
+only buddies whose memory document is absent or blank and which have at least
+one stored message. One transaction leaves memory text empty, preserves the
+enabled flag, clears suppression, and advances each selected watermark to its
+lexicographically newest `(created_at, id)` message. It does not change
+conversations or messages and does not write a successful distill-ledger row.
+Dry run is the default; apply requires an explicit backup path and creates and
+checks that private SQLite backup before changing state.
 
 ## config & secrets
 
@@ -570,8 +593,9 @@ Anthropic's 5-minute or 1-hour cache-creation fields for the same response, so
 cost and total-token calculations do not double-count cache tokens.
 
 Anthropic Claude Opus 4.8 uses the pinned model id `claude-opus-4-8`.
-Anthropic requests for Opus 4.8 enable adaptive thinking with
-`thinking: {"type": "adaptive"}`. Opus 4.8 and Opus 4.7 requests omit
+Ordinary Anthropic chat requests for Opus 4.8 enable adaptive thinking with
+`thinking: {"type": "adaptive"}`; distiller requests explicitly omit it.
+Opus 4.8 and Opus 4.7 requests omit
 `temperature`, `top_p`, and `top_k`; non-default sampling parameters are rejected
 by those models.
 

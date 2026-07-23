@@ -33,6 +33,7 @@ class AnthropicProvider:
         prompt_cache_ttl: AnthropicCacheTTL | None = None,
         stable_prefix_cache_ttl: AnthropicCacheTTL | None = None,
         effort: AnthropicEffort | None = None,
+        adaptive_thinking: bool = True,
         request_timeout_seconds: float = 60.0,
     ) -> None:
         if prompt_cache_ttl is not None and stable_prefix_cache_ttl is not None:
@@ -44,6 +45,7 @@ class AnthropicProvider:
         self._prompt_cache_ttl = prompt_cache_ttl
         self._stable_prefix_cache_ttl = stable_prefix_cache_ttl
         self._effort = effort
+        self._adaptive_thinking = adaptive_thinking
         self._request_timeout_seconds = request_timeout_seconds
 
     async def stream(
@@ -66,7 +68,7 @@ class AnthropicProvider:
                 self._stable_prefix_cache_ttl,
             ),
         }
-        if _supports_adaptive_thinking(model):
+        if self._adaptive_thinking and _supports_adaptive_thinking(model):
             payload["thinking"] = {"type": "adaptive"}
         if not _rejects_sampling_parameters(model):
             payload["temperature"] = temperature

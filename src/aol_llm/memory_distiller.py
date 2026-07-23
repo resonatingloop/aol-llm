@@ -14,7 +14,7 @@ from aol_llm.core.errors import ProviderError, UnknownProviderError
 from aol_llm.core.pricing import ModelPricing, estimate_cost_usd, load_rate_card
 from aol_llm.core.types import Message, ProviderConfig, ProviderKind, TokenUsage
 from aol_llm.providers.base import Provider
-from aol_llm.providers.registry import build_provider
+from aol_llm.providers.registry import build_distiller_provider
 from aol_llm.secrets import get_api_key
 from aol_llm.storage import db
 from aol_llm.storage.rows import format_dt
@@ -68,7 +68,7 @@ async def distill_buddy_memory(
     db_path: Path | None = None,
     app_config: AppConfig | None = None,
     config_path: Path | None = None,
-    provider_factory: ProviderFactory = build_provider,
+    provider_factory: ProviderFactory = build_distiller_provider,
     api_key_getter: ApiKeyGetter = get_api_key,
     rate_card: Mapping[str, ModelPricing] | None = None,
 ) -> DistillResult:

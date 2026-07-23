@@ -15,6 +15,7 @@ from aol_llm.core.types import (
 from aol_llm.memory_distiller import DistillResult
 from aol_llm.prompt_assembly import MEMORY_BLOCK_HEADING
 from aol_llm.providers.base import Provider
+from aol_llm.providers.registry import build_distiller_provider
 from aol_llm.storage import db
 
 
@@ -268,6 +269,70 @@ def test_clear_buddy_memory_forgets_text_and_reports_empty(tmp_path: Path) -> No
     assert memory.memory_text == ""
 
 
+def test_invalid_memory_output_pauses_only_automatic_distillation(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chat.db"
+    service = ChatService(db_path=db_path, app_config=app_config())
+    service.init()
+    buddy = service.default_buddy()
+    db.record_memory_distill_run(
+        buddy_id=buddy.id,
+        provider_id="anthropic",
+        model="claude-opus-4-8",
+        mode="incremental",
+        status="failed",
+        path=db_path,
+        failure_reason="invalid_output: output is empty",
+    )
+
+    status = service.buddy_memory_status(buddy.id)
+
+    assert status.auto_distill_paused is True
+    assert status.label == "memory failed / auto paused"
+    assert service.should_auto_distill_buddy(buddy.id) is False
+
+    db.record_memory_distill_run(
+        buddy_id=buddy.id,
+        provider_id="anthropic",
+        model="claude-opus-4-8",
+        mode="incremental",
+        status="noop",
+        path=db_path,
+    )
+    assert service.should_auto_distill_buddy(buddy.id) is False
+
+    db.record_memory_distill_run(
+        buddy_id=buddy.id,
+        provider_id="anthropic",
+        model="claude-opus-4-8",
+        mode="incremental",
+        status="success",
+        path=db_path,
+    )
+    assert service.should_auto_distill_buddy(buddy.id) is True
+
+
+def test_non_validation_memory_failure_does_not_pause_auto_distillation(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chat.db"
+    service = ChatService(db_path=db_path, app_config=app_config())
+    service.init()
+    buddy = service.default_buddy()
+    db.record_memory_distill_run(
+        buddy_id=buddy.id,
+        provider_id="anthropic",
+        model="claude-opus-4-8",
+        mode="incremental",
+        status="failed",
+        path=db_path,
+        failure_reason="provider_error: timeout",
+    )
+
+    assert service.should_auto_distill_buddy(buddy.id) is True
+
+
 @pytest.mark.asyncio
 async def test_distill_buddy_memory_delegates_service_dependencies(
     monkeypatch: pytest.MonkeyPatch,
@@ -313,7 +378,7 @@ async def test_distill_buddy_memory_delegates_service_dependencies(
     assert seen["mode"] == "refactor"
     assert seen["db_path"] == db_path
     assert seen["app_config"] == config
-    assert seen["provider_factory"] == provider_factory
+    assert seen["provider_factory"] == build_distiller_provider
     assert "api_key_getter" in seen
     assert seen["rate_card"] == {
         "claude-test": ModelPricing(input_per_mtok=1.0, output_per_mtok=2.0)

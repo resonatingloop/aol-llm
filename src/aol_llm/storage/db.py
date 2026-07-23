@@ -58,6 +58,17 @@ class MemoryDistillRun:
     created_at: datetime
 
 
+@dataclass(frozen=True)
+class BuddyMemoryBaseline:
+    buddy_id: str
+    conversation_count: int
+    message_count: int
+    memory_chars: int
+    enabled: bool
+    latest_message_created_at: str
+    latest_message_id: str
+
+
 def get_connection(path: Path | None = None) -> sqlite3.Connection:
     return _get_connection(path)
 
@@ -516,6 +527,69 @@ def list_memory_distill_runs(
         return [_memory_distill_run_from_row(row) for row in rows]
 
 
+def latest_memory_distill_attempt(
+    buddy_id: str,
+    path: Path | None = None,
+) -> MemoryDistillRun | None:
+    """Return the latest provider-attempted run, ignoring no-op checks."""
+    with get_connection(path) as connection:
+        row = connection.execute(
+            """
+            SELECT *
+            FROM memory_distill_runs
+            WHERE buddy_id = ? AND status != 'noop'
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (buddy_id,),
+        ).fetchone()
+    return None if row is None else _memory_distill_run_from_row(row)
+
+
+def preview_buddy_memory_baselines(
+    buddy_ids: list[str],
+    path: Path | None = None,
+) -> list[BuddyMemoryBaseline]:
+    """Validate and describe buddies eligible for an empty-memory baseline."""
+    with get_connection(path) as connection:
+        return _buddy_memory_baseline_candidates(connection, buddy_ids)
+
+
+def baseline_empty_buddy_memories(
+    buddy_ids: list[str],
+    path: Path | None = None,
+) -> list[BuddyMemoryBaseline]:
+    """Atomically move empty-memory buddies' watermarks to their latest messages."""
+    now = format_dt(_now())
+    with get_connection(path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        candidates = _buddy_memory_baseline_candidates(connection, buddy_ids)
+        for candidate in candidates:
+            connection.execute(
+                """
+                INSERT INTO buddy_memories
+                    (buddy_id, memory_text, enabled, suppress_injection,
+                     watermark_created_at, watermark_message_id, updated_at)
+                VALUES
+                    (?, '', ?, 0, ?, ?, ?)
+                ON CONFLICT(buddy_id) DO UPDATE SET
+                    memory_text = '',
+                    suppress_injection = 0,
+                    watermark_created_at = excluded.watermark_created_at,
+                    watermark_message_id = excluded.watermark_message_id,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    candidate.buddy_id,
+                    int(candidate.enabled),
+                    candidate.latest_message_created_at,
+                    candidate.latest_message_id,
+                    now,
+                ),
+            )
+    return candidates
+
+
 def messages_newer_than_watermark_for_buddy(
     buddy_id: str,
     path: Path | None = None,
@@ -552,6 +626,71 @@ def messages_newer_than_watermark_for_buddy(
     sql += " ORDER BY messages.created_at, messages.id"
     with get_connection(path) as connection:
         return [message_from_row(row) for row in connection.execute(sql, params)]
+
+
+def _buddy_memory_baseline_candidates(
+    connection: sqlite3.Connection,
+    buddy_ids: list[str],
+) -> list[BuddyMemoryBaseline]:
+    if not buddy_ids:
+        raise ValueError("at least one buddy id is required")
+    if len(set(buddy_ids)) != len(buddy_ids):
+        raise ValueError("buddy ids must be unique")
+
+    candidates: list[BuddyMemoryBaseline] = []
+    for buddy_id in buddy_ids:
+        buddy_row = connection.execute(
+            "SELECT 1 FROM buddies WHERE id = ?",
+            (buddy_id,),
+        ).fetchone()
+        if buddy_row is None:
+            raise KeyError(f"unknown buddy: {buddy_id}")
+
+        memory_row = connection.execute(
+            "SELECT memory_text, enabled FROM buddy_memories WHERE buddy_id = ?",
+            (buddy_id,),
+        ).fetchone()
+        memory_text = "" if memory_row is None else str(memory_row["memory_text"])
+        if memory_text.strip():
+            raise ValueError(f"buddy memory is not empty: {buddy_id}")
+
+        counts = connection.execute(
+            """
+            SELECT
+                COUNT(DISTINCT conversations.id) AS conversation_count,
+                COUNT(messages.id) AS message_count
+            FROM conversations
+            LEFT JOIN messages ON messages.conversation_id = conversations.id
+            WHERE conversations.buddy_id = ?
+            """,
+            (buddy_id,),
+        ).fetchone()
+        latest = connection.execute(
+            """
+            SELECT messages.created_at, messages.id
+            FROM messages
+            JOIN conversations ON conversations.id = messages.conversation_id
+            WHERE conversations.buddy_id = ?
+            ORDER BY messages.created_at DESC, messages.id DESC
+            LIMIT 1
+            """,
+            (buddy_id,),
+        ).fetchone()
+        if latest is None:
+            raise ValueError(f"buddy has no messages: {buddy_id}")
+
+        candidates.append(
+            BuddyMemoryBaseline(
+                buddy_id=buddy_id,
+                conversation_count=int(counts["conversation_count"]),
+                message_count=int(counts["message_count"]),
+                memory_chars=len(memory_text),
+                enabled=True if memory_row is None else bool(memory_row["enabled"]),
+                latest_message_created_at=str(latest["created_at"]),
+                latest_message_id=str(latest["id"]),
+            )
+        )
+    return candidates
 
 
 def update_buddy(id: str, path: Path | None = None, **fields: object) -> Buddy:

@@ -485,6 +485,18 @@ class THRESHOLD36(App[None]):
             if exit_after:
                 self.exit()
             return
+        if not self._chat_service.should_auto_distill_buddy(buddy_id):
+            if self._current_buddy is not None and self._current_buddy.id == buddy_id:
+                self._refresh_memory_status()
+            if exit_after:
+                self.exit()
+            else:
+                self.notify(
+                    "Memory auto-distill paused after invalid output; "
+                    "use /memory distill to retry.",
+                    severity="warning",
+                )
+            return
         self._distilling_buddy_ids.add(buddy_id)
         if self._current_buddy is not None and self._current_buddy.id == buddy_id:
             self._set_memory_status("memory distilling")

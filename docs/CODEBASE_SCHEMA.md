@@ -28,6 +28,10 @@ src/aol_llm/ui/app.py     Textual application class and action coordinator
 `aol-llm` in `pyproject.toml` points to `aol_llm:main`, which runs the Textual
 app defined in `ui/app.py`.
 
+`scripts/baseline_memory_backlog.py` is a guarded, dry-run-first recovery entry
+point for owner-approved abandoned memory backlogs. Apply requires a new private
+SQLite backup path.
+
 ## Core Types And Contracts
 
 ```text
@@ -124,7 +128,10 @@ messages newer than the buddy watermark oldest-first, calls the configured
 provider/model through the normal provider adapter, validates the returned full
 memory document, then atomically commits memory replacement plus watermark
 advance. Invalid output is recorded as a failed distill run and does not update
-memory.
+memory. Anthropic distiller construction disables adaptive thinking while
+ordinary Anthropic chat construction keeps it. A latest attempted run with an
+`invalid_output:` failure pauses automatic lifecycle retries; manual distillation
+is still available and a successful attempt clears the pause.
 
 ## Config And Secrets
 
@@ -213,6 +220,8 @@ src/aol_llm/storage/db.py
   repository functions over sqlite3
   buddy memory read/write helpers
   memory distill commit and run-ledger helpers
+  latest attempted-run lookup
+  guarded empty-memory backlog preview and baseline transaction
 ```
 
 Primary tables:
@@ -294,6 +303,7 @@ buddy.screen_name or buddy.name
 ```text
 src/aol_llm/providers/registry.py
   ProviderConfig.kind -> provider adapter
+  distiller-specific Anthropic construction without adaptive thinking
 
 src/aol_llm/providers/anthropic.py
   Anthropic Messages API
@@ -417,6 +427,7 @@ tests/test_secrets.py              keyring helper behavior
 tests/test_storage_migration.py    SQL migrations
 tests/test_storage_db.py           repository behavior
 tests/test_memory_distiller.py     backend distillation and validation
+tests/test_memory_recovery_script.py  dry-run/apply and backup recovery path
 tests/test_chat_service.py         orchestration and management behavior
 tests/test_export.py               Markdown/JSON export behavior
 tests/test_ui_commands.py          composer slash command parsing
