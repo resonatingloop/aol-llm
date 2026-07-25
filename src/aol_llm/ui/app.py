@@ -1,6 +1,8 @@
 """Textual app shell for AOL-LLM."""
 
 from collections.abc import AsyncIterator
+from functools import partial
+from pathlib import Path
 
 from textual.app import App
 from textual.widgets import ListView
@@ -19,6 +21,7 @@ from aol_llm.ui.commands import (
 from aol_llm.ui.modals import (
     BuddyPickerModal,
     ConfirmModal,
+    ExportDestinationModal,
     ExportFormatModal,
     ModelPickerModal,
     RenameModal,
@@ -420,10 +423,27 @@ class THRESHOLD36(App[None]):
     def _export_current_chat(self, format: str | None) -> None:
         if self._current_conversation is None or format is None:
             return
-        path = self._chat_service.export_conversation(
-            self._current_conversation.id,
-            format,
+        self.push_screen(
+            ExportDestinationModal(Path.home()),
+            partial(self._export_current_chat_to, format),
         )
+
+    def _export_current_chat_to(
+        self,
+        format: str,
+        directory: Path | None,
+    ) -> None:
+        if self._current_conversation is None or directory is None:
+            return
+        try:
+            path = self._chat_service.export_conversation(
+                self._current_conversation.id,
+                format,
+                directory=directory,
+            )
+        except OSError as error:
+            self.notify(f"Export failed: {error}", severity="error")
+            return
         self.notify(f"Exported {path}")
 
     def _archive_current_chat(self, confirmed: bool | None) -> None:

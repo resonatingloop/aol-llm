@@ -253,15 +253,15 @@ class ChatService:
         self,
         conversation_id: str,
         format: str = "markdown",
-        directory: Path | None = None,
+        *,
+        directory: Path,
     ) -> Path:
         conversation = db.get_conversation(conversation_id, self._db_path)
         messages = db.list_messages(conversation_id, self._db_path)
-        export_dir = directory or self._default_export_dir()
         return write_export(
             conversation,
             messages,
-            export_dir,
+            directory,
             format,
             reply_name=self._resolve_reply_name(conversation),
         )
@@ -548,13 +548,6 @@ class ChatService:
         if mode == "off":
             return None
         return mode
-
-    def _default_export_dir(self) -> Path:
-        if self._db_path is not None:
-            return self._db_path.parent / "exports"
-        from aol_llm.config import user_data_dir
-
-        return user_data_dir() / "exports"
 
     def _ensure_configured_buddies(self) -> None:
         for provider_id, settings in self._config.providers.items():

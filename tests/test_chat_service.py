@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+import inspect
 from pathlib import Path
 
 import pytest
@@ -1090,3 +1091,12 @@ def test_export_conversation_writes_markdown(tmp_path: Path) -> None:
     assert path.name.startswith("export-me-")
     assert path.suffix == ".md"
     assert "### User\n\nhello" in path.read_text(encoding="utf-8")
+
+
+def test_export_conversation_requires_keyword_destination() -> None:
+    parameter = inspect.signature(ChatService.export_conversation).parameters[
+        "directory"
+    ]
+
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameter.default is inspect.Parameter.empty

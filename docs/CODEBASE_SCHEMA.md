@@ -376,6 +376,7 @@ src/aol_llm/ui/modals.py
   RenameModal
   SystemPromptModal
   ExportFormatModal
+  ExportDestinationModal
   ConfirmModal
 
 src/aol_llm/ui/widgets.py
@@ -423,7 +424,9 @@ src/aol_llm/export.py
 Markdown export renders user-facing reply names for assistant messages when a
 resolved reply name is supplied. Last-pair export copies only the final complete
 user/assistant exchange. JSON preserves stored roles and can include `reply_name`
-metadata.
+metadata. The Textual export flow requires an explicit destination folder for
+every export; its directory browser starts at the user's home directory and does
+not persist the selection.
 
 ## Tests
 

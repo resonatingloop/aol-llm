@@ -250,13 +250,9 @@ changed.
 ## Export
 
 Use `/export` to export the current chat. Choose Markdown for a readable document
-or JSON for structured data.
-
-When running with the default app database path, exports are written under:
-
-```text
-~/.local/share/aol-llm/exports/
-```
+or JSON for structured data, then choose a destination folder in the browser.
+The browser starts at your home directory each time. Cancel either step to write
+nothing; the app does not remember an export destination.
 
 ## Local Files
 

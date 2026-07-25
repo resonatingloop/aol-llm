@@ -1,9 +1,19 @@
 """Textual modals for the AOL-LLM shell."""
 
+from pathlib import Path
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, ListItem, ListView, TextArea
+from textual.widgets import (
+    Button,
+    DirectoryTree,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    TextArea,
+)
 
 from aol_llm.chat import ModelChoice
 from aol_llm.core.types import Buddy
@@ -226,6 +236,72 @@ class ExportFormatModal(ModalScreen[str | None]):
         elif event.button.id == "export-json":
             self.dismiss("json")
         else:
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class ExportDestinationModal(ModalScreen[Path | None]):
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    DEFAULT_CSS = """
+    ExportDestinationModal {
+        align: center middle;
+    }
+
+    #export-destination-modal {
+        width: 72;
+        height: 80%;
+        border: solid $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+
+    #export-directory-tree {
+        height: 1fr;
+        margin: 1 0;
+    }
+
+    #selected-export-directory {
+        height: auto;
+    }
+    """
+
+    def __init__(self, root: Path) -> None:
+        super().__init__()
+        self._root = root
+        self._selected_directory = root
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="export-destination-modal"):
+            yield Label("Choose export folder")
+            yield DirectoryTree(self._root, id="export-directory-tree")
+            yield Label(
+                f"Selected: {self._selected_directory}",
+                id="selected-export-directory",
+            )
+            with Horizontal(classes="modal-actions"):
+                yield Button("Cancel", id="cancel-export-destination")
+                yield Button(
+                    "Select folder",
+                    id="select-export-destination",
+                    variant="primary",
+                )
+
+    def on_directory_tree_directory_selected(
+        self,
+        event: DirectoryTree.DirectorySelected,
+    ) -> None:
+        self._selected_directory = event.path
+        self.query_one("#selected-export-directory", Label).update(
+            f"Selected: {event.path}"
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "select-export-destination":
+            self.dismiss(self._selected_directory)
+        elif event.button.id == "cancel-export-destination":
             self.dismiss(None)
 
     def action_cancel(self) -> None:
