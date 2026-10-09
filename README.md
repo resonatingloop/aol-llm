@@ -208,6 +208,9 @@ Generated `dist/` files are ignored by git.
 
 - [docs/USER_MANUAL.md](./docs/USER_MANUAL.md) is the current user manual for
   installing, configuring, and using the Textual app.
+- [CAPABILITIES.md](./CAPABILITIES.md) is the exhaustive capability index with
+  owner aliases and approximate locations, kept as the substrate for the
+  planned desktop-shell migration matrix.
 - [docs/RELEASE_CHECKLIST.md](./docs/RELEASE_CHECKLIST.md) tracks the remaining
   public-release checks.
 - [docs/DESKTOP_TARGET_DECISION.md](./docs/DESKTOP_TARGET_DECISION.md) records
