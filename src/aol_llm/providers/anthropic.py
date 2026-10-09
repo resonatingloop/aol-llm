@@ -18,6 +18,7 @@ from aol_llm.providers._http import (
     raise_for_provider_status,
     translate_httpx_error,
 )
+from aol_llm.providers.images import anthropic_content
 
 ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
@@ -303,24 +304,22 @@ def _payload_messages(
     stable_prefix_cache_ttl: AnthropicCacheTTL | None,
     cache_history_prefix: bool,
 ) -> list[dict[str, object]]:
-    payload_messages: list[dict[str, object]] = [
-        {"role": message.role, "content": message.content} for message in messages
-    ]
-    if stable_prefix_cache_ttl is None or not cache_history_prefix or len(messages) < 2:
-        return payload_messages
-
-    stable_index = len(messages) - 2
-    stable_message = messages[stable_index]
-    payload_messages[stable_index] = {
-        "role": stable_message.role,
-        "content": [
-            {
-                "type": "text",
-                "text": stable_message.content,
-                "cache_control": _cache_control(stable_prefix_cache_ttl),
-            }
-        ],
-    }
+    payload_messages: list[dict[str, object]] = []
+    for index, message in enumerate(messages):
+        content = anthropic_content(message)
+        if (
+            stable_prefix_cache_ttl is not None
+            and cache_history_prefix
+            and index == len(messages) - 2
+        ):
+            blocks: list[dict[str, object]] = (
+                [{"type": "text", "text": content}]
+                if isinstance(content, str)
+                else content
+            )
+            blocks[-1]["cache_control"] = _cache_control(stable_prefix_cache_ttl)
+            content = blocks
+        payload_messages.append({"role": message.role, "content": content})
     return payload_messages
 
 

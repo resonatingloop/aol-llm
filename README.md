@@ -34,6 +34,14 @@ Current Textual features:
 - Archive/delete with confirmation
 - Markdown and JSON export
 - Token and estimated cost display
+- Image attachments from a file picker or desktop clipboard
+
+Memory is completely disabled: no injection, automatic distillation, or manual
+memory model calls. Existing memory data and chat history are retained.
+
+Use `ctrl+o` or `/attach` to choose an image, and `ctrl+v` or `/paste` to paste
+an image. PNG, JPEG, GIF, and WebP are supported with vision-capable models.
+Attachments are queued until `f3`; see the manual for clipboard setup and limits.
 
 ## Install
 
@@ -98,6 +106,7 @@ default_model = "grok-4.3"
 <!-- END AUTOGEN:provider-defaults-toml -->
 
 API keys are intentionally not stored in TOML or SQLite.
+The legacy `[memory]` settings are ignored by the disabled memory feature.
 
 Set a key through Python `keyring`. For Anthropic:
 
@@ -122,6 +131,8 @@ See [docs/USER_MANUAL.md](./docs/USER_MANUAL.md) for the current walkthrough.
 | `f5` | Archive chat |
 | `f6` | Delete chat |
 | `f7` | Retry |
+| `ctrl+o` | Attach image |
+| `ctrl+v` | Paste image |
 | `ctrl+c` | Quit |
 <!-- END AUTOGEN:keybindings-table -->
 

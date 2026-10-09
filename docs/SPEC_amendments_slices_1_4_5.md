@@ -1,5 +1,8 @@
 # AIM Memory Engine — Plan Amendments (pre-slice-4/5)
 
+> Historical memory amendments: memory injection and distillation are now
+> completely disabled. Prompt caching remains available; see `CONTRACTS.md`.
+
 Amends the implementation plan for `docs/SPEC_memory_engine_and_caching.md`. The plan's shape, slice 0 (contract correction), and slices 1–3 stand as written. These amendments resolve items left open or under-specified, and must be folded in **before** building slices 4 (distiller) and 5 (delete propagation). Keyed to the slice each touches. DECIDED items elsewhere in the brief are unchanged.
 
 ---

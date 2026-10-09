@@ -36,6 +36,7 @@ SQLite backup path.
 
 ```text
 src/aol_llm/core/types.py
+  ImageAttachment
   Message
   Conversation
   Buddy
@@ -125,21 +126,12 @@ retries, or cancellation.
 
 Stored message roles remain `user` and `assistant`. UI-facing reply names are
 presentation metadata resolved from the conversation override or buddy name.
-Prompt assembly produces stable system blocks in a-way then memory order and
-flattens them to plain system text for provider adapters that do not accept
-structured system blocks. `ChatService` freezes the buddy memory row per
-conversation for its own process lifetime; a-way prompt resolution remains
-per-send.
-
-`memory_distiller.py` runs backend buddy-memory distillation. It batches
-messages newer than the buddy watermark oldest-first, calls the configured
-provider/model through the normal provider adapter, validates the returned full
-memory document, then atomically commits memory replacement plus watermark
-advance. Invalid output is recorded as a failed distill run and does not update
-memory. Anthropic distiller construction disables adaptive thinking while
-ordinary Anthropic chat construction keeps it. A latest attempted run with an
-`invalid_output:` failure pauses automatic lifecycle retries; manual distillation
-is still available and a successful attempt clears the pause.
+Prompt assembly includes only the resolved a-way/system text, per-send. Buddy
+memory injection is hard-disabled regardless of saved flags. `memory_distiller.py`
+retains the historical document validator and fail-closed public entrypoint;
+distillation raises before any key lookup or provider construction. Lifecycle
+actions cannot schedule memory work, and `/memory` cannot enable it. Existing
+memory data and config remain for compatibility, not runtime use.
 
 ## Config And Secrets
 
@@ -220,6 +212,7 @@ src/aol_llm/storage/migrations/
   006_buddy_memories_and_cache_usage.sql
   007_memory_distill_runs.sql
   008_openai_gpt_5_6.sql
+  009_message_images.sql
 
 src/aol_llm/storage/rows.py
   sqlite.Row -> dataclass conversion
@@ -237,6 +230,7 @@ Primary tables:
 ```text
 conversations
 messages
+message_images
 providers
 app_settings
 buddies
@@ -270,7 +264,7 @@ init
 
 send_message
   add user message
-  assemble a-way plus frozen buddy memory into system prompt
+  resolve a-way without buddy memory
   stream provider response
   persist assistant message with usage, cost, model, prompt provenance
   pass prompt-cache policy to Anthropic when enabled in app_settings
@@ -403,6 +397,8 @@ f4       New chat
 f5       Archive chat
 f6       Delete chat
 f7       Retry
+ctrl+o   Attach image
+ctrl+v   Paste image
 ctrl+c   Quit
 <!-- END AUTOGEN:keybindings-text -->
 escape   cancel modal/settings
@@ -412,6 +408,14 @@ Binding/action audit status: all bindings have matching app actions or Textual's
 built-in `quit`.
 
 ## Export
+
+Image input helpers:
+
+- `src/aol_llm/core/images.py`: bounded image snapshots and validation.
+- `src/aol_llm/ui/image_picker.py`: image picker with file browser and direct path.
+- `src/aol_llm/clipboard.py`: asynchronous Linux clipboard image import.
+- `src/aol_llm/_x11_clipboard.py`: dependency-free X11 clipboard fallback.
+- `src/aol_llm/providers/images.py`: provider-native image content serialization.
 
 ```text
 src/aol_llm/export.py

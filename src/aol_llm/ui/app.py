@@ -5,11 +5,13 @@ from functools import partial
 from pathlib import Path
 
 from textual.app import App
-from textual.widgets import ListView
+from textual.widgets import Button, ListView
 
 from aol_llm.chat import ChatEvent, ChatService, ModelChoice
+from aol_llm.clipboard import read_clipboard_image
 from aol_llm.core.errors import ProviderError
-from aol_llm.core.types import Buddy, Conversation
+from aol_llm.core.images import image_summary, read_image, validate_images
+from aol_llm.core.types import Buddy, Conversation, ImageAttachment
 from aol_llm.export import export_last_pair_markdown, export_markdown
 from aol_llm.memory_distiller import DistillMode, DistillResult
 from aol_llm.ui.commands import (
@@ -18,6 +20,7 @@ from aol_llm.ui.commands import (
     parse_slash_command,
     slash_command_detail_summary,
 )
+from aol_llm.ui.image_picker import ImagePickerModal
 from aol_llm.ui.modals import (
     BuddyPickerModal,
     ConfirmModal,
@@ -44,6 +47,27 @@ class THRESHOLD36(App[None]):
     BINDINGS = APP_BINDINGS
     COMMANDS = App.COMMANDS | {SlashCommandProvider}
 
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        # Main-screen shortcuts must not act on the picker/settings/modal widgets.
+        if action in {
+            "send_message",
+            "new_conversation",
+            "rename_current_buddy",
+            "archive_current_chat",
+            "delete_current_chat",
+            "retry_last",
+            "attach_image",
+            "paste_image",
+            "clear_images",
+        }:
+            return isinstance(self.screen, MainScreen) and not self._sending
+        if action == "open_settings":
+            return (
+                isinstance(self.screen, (MainScreen, SettingsScreen))
+                and not self._sending
+            )
+        return super().check_action(action, parameters)
+
     def __init__(self, chat_service: ChatService | None = None) -> None:
         super().__init__()
         self._chat_service = chat_service or ChatService()
@@ -52,6 +76,8 @@ class THRESHOLD36(App[None]):
         self._current_conversation: Conversation | None = None
         self._conversation_ids: list[str] = []
         self._sending = False
+        self._pasting_image = False
+        self._pending_images: dict[str, tuple[ImageAttachment, ...]] = {}
         self._distilling_buddy_ids: set[str] = set()
 
     async def on_mount(self) -> None:
@@ -73,7 +99,9 @@ class THRESHOLD36(App[None]):
 
         composer = self.screen.query_one(Composer)
         content = composer.text().strip()
-        if not content:
+        conversation_id = self._current_conversation.id
+        images = self._pending_images.get(conversation_id, ())
+        if not content and not images:
             return
         command = parse_slash_command(content)
         if command is not None:
@@ -81,16 +109,26 @@ class THRESHOLD36(App[None]):
             await self._handle_slash_command(command)
             return
 
+        try:
+            validate_images(images)
+        except ValueError as error:
+            self.notify(str(error), severity="error")
+            return
         self._sending = True
         composer.clear()
+        self._pending_images.pop(conversation_id, None)
+        self._refresh_pending_images()
         transcript = self.screen.query_one(ChatTranscript)
-        transcript.append_message("user", content)
+        transcript.append_message(
+            "user", "\n".join(filter(None, [content, image_summary(images)]))
+        )
 
         try:
             await self._stream_assistant_response(
                 self._chat_service.send_message(
-                    self._current_conversation.id,
+                    conversation_id,
                     content,
+                    images=images,
                 ),
                 show_provider_error=True,
             )
@@ -99,6 +137,74 @@ class THRESHOLD36(App[None]):
         finally:
             self._sending = False
             self._refresh_conversation_list()
+
+    def action_attach_image(self) -> None:
+        if (
+            self._sending
+            or self._current_conversation is None
+            or not isinstance(self.screen, MainScreen)
+        ):
+            return
+        self.push_screen(
+            ImagePickerModal(),
+            partial(self._attach_image_path, self._current_conversation.id),
+        )
+
+    def _attach_image_path(self, conversation_id: str, path: Path | None) -> None:
+        if path is None:
+            return
+        try:
+            self._queue_image(conversation_id, read_image(path))
+        except (OSError, ValueError) as error:
+            self.notify(f"Cannot attach image: {error}", severity="error")
+
+    async def action_paste_image(self) -> None:
+        if (
+            self._sending
+            or self._pasting_image
+            or self._current_conversation is None
+            or not isinstance(self.screen, MainScreen)
+        ):
+            return
+        conversation_id = self._current_conversation.id
+        self._pasting_image = True
+        try:
+            self._queue_image(conversation_id, await read_clipboard_image())
+        except (OSError, ValueError) as error:
+            self.notify(f"Cannot paste image: {error}", severity="error")
+        finally:
+            self._pasting_image = False
+
+    def _queue_image(self, conversation_id: str, image: ImageAttachment) -> None:
+        images = (*self._pending_images.get(conversation_id, ()), image)
+        validate_images(images)
+        self._pending_images[conversation_id] = images
+        self._refresh_pending_images()
+        self.notify(f"Image queued: {image.name}; f3 to send")
+
+    def action_clear_images(self) -> None:
+        if self._sending or self._current_conversation is None:
+            return
+        self._pending_images.pop(self._current_conversation.id, None)
+        self._refresh_pending_images()
+
+    def _refresh_pending_images(self) -> None:
+        if not isinstance(self.screen, MainScreen):
+            return
+        images = (
+            ()
+            if self._current_conversation is None
+            else self._pending_images.get(self._current_conversation.id, ())
+        )
+        self.screen.query_one(Composer).set_images(image_summary(images))
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "attach-image":
+            self.action_attach_image()
+        elif event.button.id == "paste-image":
+            await self.action_paste_image()
+        elif event.button.id == "clear-images":
+            self.action_clear_images()
 
     def action_rename_current_chat(self) -> None:
         if self._current_conversation is None:
@@ -207,16 +313,11 @@ class THRESHOLD36(App[None]):
         )
 
     async def action_quit(self) -> None:
-        if self._current_buddy is None:
-            self.exit()
-            return
-        self._trigger_distill_for_buddy(
-            self._current_buddy.id,
-            reason="quit",
-            exit_after=True,
-        )
+        self.exit()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if self._sending:
+            return
         if event.list_view.id == "buddy-list":
             if event.index >= len(self._buddy_ids):
                 return
@@ -322,6 +423,14 @@ class THRESHOLD36(App[None]):
         self.notify("Reply name updated")
 
     async def _handle_slash_command(self, command: SlashCommand) -> None:
+        if command.name == "attach":
+            if command.args and self._current_conversation is not None:
+                self._attach_image_path(
+                    self._current_conversation.id, Path(command.args[0])
+                )
+            else:
+                self.action_attach_image()
+            return
         if command.name == "cache":
             self._handle_cache_command(command.args)
             return
@@ -336,6 +445,12 @@ class THRESHOLD36(App[None]):
             return
         if command.name == "copy":
             self.action_copy_last_pair()
+            return
+        if command.name == "paste":
+            await self.action_paste_image()
+            return
+        if command.name == "detach":
+            self.action_clear_images()
             return
         if command.name == "export":
             self.action_export_current_chat()
@@ -388,37 +503,7 @@ class THRESHOLD36(App[None]):
         self.notify("Usage: /cache on|1h|5m|off|status", severity="warning")
 
     async def _handle_memory_command(self, args: tuple[str, ...]) -> None:
-        subcommands = {"status", "on", "off", "forget", "distill", "refactor"}
-        if len(args) != 1 or args[0] not in subcommands:
-            self.notify(
-                "Usage: /memory status|on|off|forget|distill|refactor",
-                severity="warning",
-            )
-            return
-        if self._current_buddy is None:
-            self.notify("No active buddy for memory command", severity="warning")
-            return
-        if args[0] == "status":
-            self._notify_memory_status(self._current_buddy.id)
-            return
-        if args[0] == "on":
-            self._chat_service.set_buddy_memory_enabled(self._current_buddy.id, True)
-            self._refresh_memory_status()
-            self.notify("Memory injection enabled")
-            return
-        if args[0] == "off":
-            self._chat_service.set_buddy_memory_enabled(self._current_buddy.id, False)
-            self._refresh_memory_status()
-            self.notify("Memory injection disabled")
-            return
-        if args[0] == "forget":
-            self.push_screen(
-                ConfirmModal("Forget active buddy memory?"),
-                self._forget_current_buddy_memory,
-            )
-            return
-        mode: DistillMode = "refactor" if args[0] == "refactor" else "incremental"
-        await self._distill_buddy_command(self._current_buddy.id, mode)
+        self.notify("Memory is disabled; no memory model calls are made.")
 
     def _export_current_chat(self, format: str | None) -> None:
         if self._current_conversation is None or format is None:
@@ -462,6 +547,7 @@ class THRESHOLD36(App[None]):
         if self._current_conversation is None or not confirmed:
             return
         self._chat_service.delete_conversation(self._current_conversation.id)
+        self._pending_images.pop(self._current_conversation.id, None)
         self._refresh_conversation_list()
         self._set_current_conversation_for_current_buddy()
 
@@ -501,35 +587,9 @@ class THRESHOLD36(App[None]):
         reason: str,
         exit_after: bool = False,
     ) -> None:
-        if buddy_id in self._distilling_buddy_ids:
-            if exit_after:
-                self.exit()
-            return
-        if not self._chat_service.should_auto_distill_buddy(buddy_id):
-            if self._current_buddy is not None and self._current_buddy.id == buddy_id:
-                self._refresh_memory_status()
-            if exit_after:
-                self.exit()
-            else:
-                self.notify(
-                    "Memory auto-distill paused after invalid output; "
-                    "use /memory distill to retry.",
-                    severity="warning",
-                )
-            return
-        self._distilling_buddy_ids.add(buddy_id)
-        if self._current_buddy is not None and self._current_buddy.id == buddy_id:
-            self._set_memory_status("memory distilling")
-        self.run_worker(
-            self._distill_buddy_worker(
-                buddy_id,
-                reason=reason,
-                exit_after=exit_after,
-            ),
-            name=f"memory-distill-{buddy_id}",
-            group="memory-distill",
-            exit_on_error=False,
-        )
+        # Lifecycle actions must not start memory workers, even with old flags.
+        if exit_after:
+            self.exit()
 
     async def _distill_buddy_worker(
         self,
@@ -616,6 +676,7 @@ class THRESHOLD36(App[None]):
             self._current_buddy = self._chat_service.get_buddy(conversation.buddy_id)
         self._refresh_status_model()
         self._refresh_memory_status()
+        self._refresh_pending_images()
         self._load_current_transcript()
 
     def _refresh_status_model(self) -> None:
@@ -632,15 +693,7 @@ class THRESHOLD36(App[None]):
         )
 
     def _refresh_memory_status(self) -> None:
-        if self._current_buddy is None:
-            self._set_memory_status("memory empty")
-            return
-        if self._current_buddy.id in self._distilling_buddy_ids:
-            self._set_memory_status("memory distilling")
-            return
-        self._set_memory_status(
-            self._chat_service.buddy_memory_status(self._current_buddy.id).label
-        )
+        self._set_memory_status("memory disabled")
 
     def _set_memory_status(self, status: str) -> None:
         self.screen.query_one(StatusBar).set_memory(status)
@@ -654,7 +707,9 @@ class THRESHOLD36(App[None]):
         for message in messages:
             transcript.append_message(
                 message.role,
-                message.content,
+                "\n".join(
+                    filter(None, [message.content, image_summary(message.images)])
+                ),
                 self._display_name(message.role),
             )
         self.screen.query_one(StatusBar).set_usage(

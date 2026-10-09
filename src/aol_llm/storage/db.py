@@ -1,6 +1,6 @@
 """SQLite repository functions."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 import json
 from pathlib import Path
@@ -8,10 +8,12 @@ import sqlite3
 from typing import Literal, cast
 from uuid import uuid4
 
+from aol_llm.core.images import validate_images
 from aol_llm.core.types import (
     Buddy,
     BuddyMemory,
     Conversation,
+    ImageAttachment,
     Message,
     Prompt,
     PromptStatus,
@@ -212,7 +214,11 @@ def add_message(
     cache_creation_5m_input_tokens: int | None = None,
     cache_creation_1h_input_tokens: int | None = None,
     cache_read_input_tokens: int | None = None,
+    images: tuple[ImageAttachment, ...] = (),
 ) -> Message:
+    validate_images(images)
+    if images and role != "user":
+        raise ValueError("Only user messages may contain images")
     message = Message(
         id=uuid4().hex,
         conversation_id=conversation_id,
@@ -227,6 +233,7 @@ def add_message(
         cache_creation_5m_input_tokens=cache_creation_5m_input_tokens,
         cache_creation_1h_input_tokens=cache_creation_1h_input_tokens,
         cache_read_input_tokens=cache_read_input_tokens,
+        images=images,
     )
     with get_connection(path) as connection:
         connection.execute(
@@ -254,6 +261,14 @@ def add_message(
                 format_dt(message.created_at),
             ),
         )
+        connection.executemany(
+            "INSERT INTO message_images (message_id, position, name, media_type, data) "
+            "VALUES (?, ?, ?, ?, ?)",
+            [
+                (message.id, position, image.name, image.media_type, image.data)
+                for position, image in enumerate(images)
+            ],
+        )
     return message
 
 
@@ -263,7 +278,24 @@ def list_messages(conversation_id: str, path: Path | None = None) -> list[Messag
             "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at, id",
             (conversation_id,),
         )
-        return [message_from_row(row) for row in rows]
+        messages = [message_from_row(row) for row in rows]
+        images: dict[str, list[ImageAttachment]] = {}
+        for row in connection.execute(
+            "SELECT i.* FROM message_images i JOIN messages m ON m.id = i.message_id "
+            "WHERE m.conversation_id = ? ORDER BY i.message_id, i.position",
+            (conversation_id,),
+        ):
+            images.setdefault(row["message_id"], []).append(
+                ImageAttachment(
+                    name=row["name"],
+                    media_type=row["media_type"],
+                    data=row["data"],
+                )
+            )
+        return [
+            replace(message, images=tuple(images.get(message.id, ())))
+            for message in messages
+        ]
 
 
 def delete_message(id: str, path: Path | None = None) -> None:

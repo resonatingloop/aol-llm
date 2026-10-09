@@ -49,6 +49,7 @@ def test_all_migrations_add_buddy_prompt_tables_and_seed_defaults() -> None:
         "buddies",
         "conversations",
         "memory_distill_runs",
+        "message_images",
         "messages",
         "prompt_versions",
         "prompts",

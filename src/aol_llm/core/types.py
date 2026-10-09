@@ -10,6 +10,13 @@ PromptStatus = Literal["draft", "canonical", "archived"]
 
 
 @dataclass(frozen=True)
+class ImageAttachment:
+    name: str
+    media_type: str
+    data: bytes
+
+
+@dataclass(frozen=True)
 class Message:
     id: str
     conversation_id: str
@@ -24,6 +31,7 @@ class Message:
     cache_creation_5m_input_tokens: int | None = None
     cache_creation_1h_input_tokens: int | None = None
     cache_read_input_tokens: int | None = None
+    images: tuple[ImageAttachment, ...] = ()
 
 
 @dataclass(frozen=True)

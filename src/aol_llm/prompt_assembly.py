@@ -35,12 +35,8 @@ def assemble_prompt(
 
 
 def should_inject_memory(buddy_memory: BuddyMemory | None) -> bool:
-    return (
-        buddy_memory is not None
-        and buddy_memory.enabled
-        and bool(buddy_memory.memory_text.strip())
-        and not buddy_memory.suppress_injection
-    )
+    """Memory is disabled globally, regardless of historical row flags."""
+    return False
 
 
 def _memory_block(memory_text: str) -> str:

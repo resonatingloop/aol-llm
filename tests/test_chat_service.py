@@ -14,9 +14,7 @@ from aol_llm.core.types import (
     TokenUsage,
 )
 from aol_llm.memory_distiller import DistillResult
-from aol_llm.prompt_assembly import MEMORY_BLOCK_HEADING
 from aol_llm.providers.base import Provider
-from aol_llm.providers.registry import build_distiller_provider
 from aol_llm.storage import db
 
 
@@ -233,9 +231,9 @@ def test_buddy_memory_status_reports_empty_on_missing_row(tmp_path: Path) -> Non
     status = service.buddy_memory_status(buddy.id)
 
     assert status.has_memory is False
-    assert status.enabled is True
+    assert status.enabled is False
     assert status.suppressed is False
-    assert status.label == "memory empty"
+    assert status.label == "memory disabled"
 
 
 def test_buddy_memory_status_tracks_enabled_and_suppressed(tmp_path: Path) -> None:
@@ -250,9 +248,9 @@ def test_buddy_memory_status_tracks_enabled_and_suppressed(tmp_path: Path) -> No
     db.set_buddy_memory_suppressed(buddy.id, True, db_path)
     suppressed = service.buddy_memory_status(buddy.id)
 
-    assert enabled.label == "memory on"
-    assert disabled.label == "memory off"
-    assert suppressed.label == "memory suppressed"
+    assert enabled.label == "memory disabled"
+    assert disabled.label == "memory disabled"
+    assert suppressed.label == "memory disabled"
 
 
 def test_clear_buddy_memory_forgets_text_and_reports_empty(tmp_path: Path) -> None:
@@ -264,7 +262,7 @@ def test_clear_buddy_memory_forgets_text_and_reports_empty(tmp_path: Path) -> No
 
     status = service.clear_buddy_memory(buddy.id)
 
-    assert status.label == "memory empty"
+    assert status.label == "memory disabled"
     memory = db.get_buddy_memory(buddy.id, db_path)
     assert memory is not None
     assert memory.memory_text == ""
@@ -290,7 +288,7 @@ def test_invalid_memory_output_pauses_only_automatic_distillation(
     status = service.buddy_memory_status(buddy.id)
 
     assert status.auto_distill_paused is True
-    assert status.label == "memory failed / auto paused"
+    assert status.label == "memory disabled"
     assert service.should_auto_distill_buddy(buddy.id) is False
 
     db.record_memory_distill_run(
@@ -311,7 +309,7 @@ def test_invalid_memory_output_pauses_only_automatic_distillation(
         status="success",
         path=db_path,
     )
-    assert service.should_auto_distill_buddy(buddy.id) is True
+    assert service.should_auto_distill_buddy(buddy.id) is False
 
 
 def test_non_validation_memory_failure_does_not_pause_auto_distillation(
@@ -331,7 +329,7 @@ def test_non_validation_memory_failure_does_not_pause_auto_distillation(
         failure_reason="provider_error: timeout",
     )
 
-    assert service.should_auto_distill_buddy(buddy.id) is True
+    assert service.should_auto_distill_buddy(buddy.id) is False
 
 
 @pytest.mark.asyncio
@@ -370,20 +368,13 @@ async def test_distill_buddy_memory_delegates_service_dependencies(
         seen["buddy_id"] = buddy_id
         return await fake_distiller(**kwargs)
 
-    monkeypatch.setattr("aol_llm.chat.run_memory_distiller", fake_run_memory_distiller)
+    monkeypatch.setattr(
+        "aol_llm.memory_distiller.distill_buddy_memory", fake_run_memory_distiller
+    )
 
-    result = await service.distill_buddy_memory(buddy.id, mode="refactor")
-
-    assert result.status == "noop"
-    assert seen["buddy_id"] == buddy.id
-    assert seen["mode"] == "refactor"
-    assert seen["db_path"] == db_path
-    assert seen["app_config"] == config
-    assert seen["provider_factory"] == build_distiller_provider
-    assert "api_key_getter" in seen
-    assert seen["rate_card"] == {
-        "claude-test": ModelPricing(input_per_mtok=1.0, output_per_mtok=2.0)
-    }
+    with pytest.raises(ValueError, match="Memory is disabled"):
+        await service.distill_buddy_memory(buddy.id, mode="refactor")
+    assert seen == {}
 
 
 def test_init_does_not_recreate_archived_default_buddy(tmp_path: Path) -> None:
@@ -740,7 +731,7 @@ async def test_legacy_system_prompt_fallback_when_no_prompt_version(
 
 
 @pytest.mark.asyncio
-async def test_send_message_injects_buddy_memory_after_a_way(
+async def test_send_message_ignores_enabled_buddy_memory(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "chat.db"
@@ -799,8 +790,7 @@ async def test_send_message_injects_buddy_memory_after_a_way(
     assert len(seen_systems) == 1
     system = seen_systems[0]
     assert system is not None
-    assert system.index("Be concise.") < system.index(MEMORY_BLOCK_HEADING)
-    assert "Maria and this buddy are building prompt memory." in system
+    assert system == "Be concise."
 
 
 @pytest.mark.asyncio
@@ -877,7 +867,7 @@ async def test_send_message_skips_non_injectable_memory(
 
 
 @pytest.mark.asyncio
-async def test_openai_compatible_send_receives_flattened_memory_prefix(
+async def test_openai_compatible_send_ignores_memory_prefix(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "chat.db"
@@ -943,13 +933,11 @@ async def test_openai_compatible_send_receives_flattened_memory_prefix(
 
     system = seen_systems[0]
     assert system is not None
-    assert system == "\n\n".join(system.split("\n\n"))
-    assert system.index("Be concise.") < system.index(MEMORY_BLOCK_HEADING)
-    assert "Remember the atlas work." in system
+    assert system == "Be concise."
 
 
 @pytest.mark.asyncio
-async def test_memory_is_frozen_for_conversation_within_service_instance(
+async def test_memory_edits_never_change_conversation_system_prompt(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "chat.db"
@@ -1004,9 +992,7 @@ async def test_memory_is_frozen_for_conversation_within_service_instance(
     _ = [event async for event in service.send_message(conversation.id, "again")]
 
     assert len(seen_systems) == 2
-    assert "First memory." in (seen_systems[0] or "")
-    assert "First memory." in (seen_systems[1] or "")
-    assert "Second memory." not in (seen_systems[1] or "")
+    assert seen_systems == ["Be concise.", "Be concise."]
 
 
 def test_delete_conversation_removes_chat(tmp_path: Path) -> None:

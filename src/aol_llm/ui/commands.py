@@ -32,12 +32,10 @@ SLASH_COMMAND_DOCS: tuple[SlashCommandDoc, ...] = (
     ),
     SlashCommandDoc("/export", "Open export menu"),
     SlashCommandDoc("/away", "Open a-way menu"),
-    SlashCommandDoc("/memory status", "Show active buddy memory status"),
-    SlashCommandDoc("/memory on", "Enable active buddy memory injection"),
-    SlashCommandDoc("/memory off", "Disable active buddy memory injection"),
-    SlashCommandDoc("/memory forget", "Forget active buddy memory"),
-    SlashCommandDoc("/memory distill", "Distill memory for the active buddy"),
-    SlashCommandDoc("/memory refactor", "Refactor memory for the active buddy"),
+    SlashCommandDoc("/memory status", "Show that memory is disabled"),
+    SlashCommandDoc("/attach", "Choose an image file (or /attach PATH)"),
+    SlashCommandDoc("/paste", "Paste an image from the desktop clipboard"),
+    SlashCommandDoc("/detach", "Clear the current chat's queued images"),
     SlashCommandDoc("/buddy", "Open active buddy picker"),
     SlashCommandDoc("/chatname", "Open current chat name editor"),
     SlashCommandDoc("/quit", "Quit"),
@@ -66,6 +64,14 @@ def parse_slash_command(text: str) -> SlashCommand | None:
     parts = stripped[1:].split()
     if not parts:
         return SlashCommand(name="", args=())
+    if parts[0].lower() == "attach":
+        path_parts = stripped[1:].split(maxsplit=1)
+        if len(path_parts) == 1:
+            return SlashCommand(name="attach", args=())
+        path = path_parts[1]
+        if len(path) >= 2 and path[0] == path[-1] and path[0] in {"'", '"'}:
+            path = path[1:-1]
+        return SlashCommand(name="attach", args=(path,))
     return SlashCommand(name=parts[0].lower(), args=tuple(parts[1:]))
 
 

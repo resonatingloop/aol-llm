@@ -2,7 +2,7 @@
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
-from textual.widgets import Label, ListItem, ListView, Static, TextArea
+from textual.widgets import Button, Label, ListItem, ListView, Static, TextArea
 
 from aol_llm.core.types import Buddy, Conversation
 
@@ -60,7 +60,9 @@ class ChatTranscript(Static):
     ) -> Static:
         body = self.query_one("#transcript-body", VerticalScroll)
         label = display_name if display_name is not None else role
-        message = Static(f"{label}: {content}", classes=f"message {role}-message")
+        message = Static(
+            f"{label}: {content}", classes=f"message {role}-message", markup=False
+        )
         body.mount(message)
         body.scroll_end(animate=False)
         return message
@@ -75,7 +77,15 @@ class ChatTranscript(Static):
 
 class Composer(Static):
     def compose(self) -> ComposeResult:
+        yield Static("", id="composer-images", markup=False)
         yield TextArea(id="composer-input")
+        with Horizontal(id="composer-image-actions"):
+            yield Button("Attach image", id="attach-image")
+            yield Button("Paste image", id="paste-image")
+            yield Button("Clear images", id="clear-images")
+
+    def set_images(self, summary: str) -> None:
+        self.query_one("#composer-images", Static).update(summary)
 
     def text(self) -> str:
         return self.query_one("#composer-input", TextArea).text
@@ -88,7 +98,7 @@ class StatusBar(Static):
     def compose(self) -> ComposeResult:
         with Horizontal(id="status-row"):
             yield Static("anthropic / claude-sonnet-test", id="status-model")
-            yield Static("memory empty", id="status-memory")
+            yield Static("memory disabled", id="status-memory")
             yield Static(
                 format_usage_status(0, 0, 0.0),
                 id="status-usage",

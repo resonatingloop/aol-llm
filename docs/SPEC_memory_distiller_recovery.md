@@ -1,5 +1,8 @@
 # Memory Distiller Recovery
 
+> Historical recovery specification: memory injection and distillation are now
+> completely disabled. Existing data is retained; `CONTRACTS.md` governs current behavior.
+
 > **Status:** accepted
 > **Accepted:** 2026-07-21
 > **Owner decision:** abandon the four failed historical buddy backlogs as

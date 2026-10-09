@@ -19,6 +19,7 @@ from aol_llm.providers._http import (
     raise_for_provider_status,
     translate_httpx_error,
 )
+from aol_llm.providers.images import openai_response_content
 
 TextVerbosity = Literal["low", "medium", "high"]
 OpenAIReasoningEffort = Literal["none", "low", "medium", "high", "xhigh", "max"]
@@ -51,7 +52,8 @@ async def stream_openai_response(
     payload: dict[str, object] = {
         "model": model,
         "input": [
-            {"role": message.role, "content": message.content} for message in messages
+            {"role": message.role, "content": openai_response_content(message)}
+            for message in messages
         ],
         "stream": True,
         "max_output_tokens": max_output_tokens,

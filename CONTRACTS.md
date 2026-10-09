@@ -40,6 +40,12 @@ ProviderKind = Literal["anthropic", "openai_compatible"]
 PromptStatus = Literal["draft", "canonical", "archived"]
 
 @dataclass(frozen=True)
+class ImageAttachment:
+    name: str                       # display name, not a source path
+    media_type: str                 # image/png, image/jpeg, image/gif, image/webp
+    data: bytes                     # immutable local snapshot
+
+@dataclass(frozen=True)
 class Message:
     id: str                          # uuid4 hex
     conversation_id: str
@@ -54,6 +60,7 @@ class Message:
     cache_creation_5m_input_tokens: int | None = None
     cache_creation_1h_input_tokens: int | None = None
     cache_read_input_tokens: int | None = None
+    images: tuple[ImageAttachment, ...] = ()  # user-authored attachments only
 
 @dataclass(frozen=True)
 class Conversation:
@@ -169,6 +176,16 @@ class StreamChunk:
 ```
 
 ## provider interface
+
+Images are carried in `Message.images`; `Provider.stream(...)` keeps its existing
+signature. Text-only payloads stay unchanged. Only user messages can have images.
+Anthropic sends base64 image source blocks, compatible Chat Completions sends
+`image_url` data URIs, and OpenAI Responses sends `input_image` data URIs.
+Image blocks precede optional text. Stable-history Anthropic caching marks the
+final content block without dropping image blocks. Adapters validate attachments
+before HTTP and translate invalid attachments into `UnknownProviderError`.
+Model/endpoint vision support is determined by the provider; images are never
+silently dropped.
 
 ```python
 # providers/base.py
@@ -365,6 +382,22 @@ current migrations:
 - `006_buddy_memories_and_cache_usage.sql`
 - `007_memory_distill_runs.sql`
 - `008_openai_gpt_5_6.sql`
+- `009_message_images.sql`: ordered `message_images` rows with immutable image
+  BLOBs, filenames, and MIME types; foreign-key cascade on message/chat deletion.
+
+The additive table has `(message_id, position)` as its primary key and columns
+`name TEXT NOT NULL`, `media_type TEXT NOT NULL`, and `data BLOB NOT NULL`.
+`message_id` references `messages(id) ON DELETE CASCADE`. Existing messages and
+tables are unchanged. Message insertion and image insertion share one transaction.
+`list_messages` reconstructs the ordered image tuples. Migration application is
+idempotent, and older text-only messages have `images = ()`.
+
+`core/images.py` snapshots local files with bounded reads, detects PNG/JPEG/GIF/
+WebP signatures, and validates MIME agreement and size/count limits: 5 MiB each,
+10 images and 20 MiB total per message. It does not decode image pixels; provider
+validation handles corrupt image data and model-specific restrictions. Draft
+attachments stay local until explicit send. Clipboard reads are bounded to five
+seconds and do not take ownership of the desktop clipboard.
 
 ## storage layer contract
 
@@ -420,26 +453,11 @@ Provider adapters still receive the effective system prompt separately from
 ordered user/assistant messages and translate it into each provider's required
 API format. Message roles remain limited to `user` and `assistant`.
 
-Prompt assembly lives in `src/aol_llm/prompt_assembly.py`. It produces stable
-system blocks in this fixed order:
-
-1. resolved a-way/system prompt, if non-empty.
-2. buddy memory block, only when injectable.
-
-Memory is injectable only when a `BuddyMemory` row exists, `enabled` is true,
-`memory_text.strip()` is non-empty, and `suppress_injection` is false. Otherwise
-the assembly layer injects nothing for memory: no heading, delimiter,
-placeholder, or blank section. The flattened system text for
-OpenAI-compatible providers is the ordered system blocks joined by blank lines.
-Changing the a-way text, memory text, or memory block wrapper changes the cached
-prefix.
-
-`ChatService` wires prompt assembly into every streamed provider send. For a
-given `ChatService` instance, the buddy memory row is loaded once per
-conversation and reused for that conversation so manual memory edits do not
-change the prefix mid-conversation. The a-way/system prompt is still resolved on
-each send, so editing a conversation's a-way message takes effect immediately
-and intentionally changes the cached prefix.
+Prompt assembly lives in `src/aol_llm/prompt_assembly.py`. It includes only the
+resolved a-way/system prompt when non-empty. Memory injection is hard-disabled:
+`should_inject_memory(...)` always returns false, and `ChatService` does not load
+memory into requests, even when historical rows have `enabled = 1`. No memory
+heading, placeholder, or blank section is sent. A-way resolution remains per-send.
 
 Claude prompt caching is controlled by `app_settings` key
 `anthropic_prompt_cache_enabled`. Stored values are `off`, `5m`, or `1h`; legacy
@@ -453,43 +471,21 @@ Anthropic adapter sends top-level automatic cache control:
 
 OpenAI-compatible providers ignore the cache policy.
 
-## memory distiller contract
+## disabled memory contract
 
-`src/aol_llm/memory_distiller.py` owns the backend distillation loop. The public
-entrypoint is `distill_buddy_memory(buddy_id, mode="incremental", ...)`.
-Supported modes are `incremental` and `refactor`; the mode is passed to the
-prompt as a runtime input on every batch.
+Memory is disabled completely, not configurable. Buddy/chat/model switches,
+archive, quit, and all `/memory` commands cannot start distillation or enable
+injection. The footer reports `memory disabled`; quit exits without memory work.
+Both `ChatService.distill_buddy_memory(...)` and the backend public
+`distill_buddy_memory(...)` raise `ValueError("Memory is disabled...")` before
+secret lookup, provider construction, or memory-state writes. Legacy config,
+memory documents, watermarks, run ledgers, and the historical distiller prompt
+artifact remain on disk unchanged. They are not used for model requests.
 
-Distillation is per-buddy and oldest-first. Each batch sends the current memory
-document plus a transcript slice newer than the buddy watermark to the configured
-provider/model. The configured default is `anthropic / claude-opus-4-8`.
-Distiller traffic uses the normal provider adapter and pricing layer; there are
-no side-channel API calls. Anthropic distiller requests omit adaptive thinking
-so the 4,096-token output budget remains available to the visible memory
-document. Ordinary Anthropic chat requests retain their configured adaptive
-thinking behavior.
-
-The distiller prompt artifact lives at
-`src/aol_llm/data/memory_distiller_prompt.md`. Runtime inputs are delimited as
-`<current_memory>`, `<transcript_slice>`, and `<mode>`. The prompt must return a
-full rewritten memory document, not a patch or append-only delta.
-
-Before committing a successful provider response, the distiller applies a
-deterministic output validation gate. Invalid output is a failed batch: no
-`memory_text` replacement and no watermark advance. The validator checks for a
-non-empty markdown document, no fenced wrapper or preamble, canonical heading
-order, preserved descriptor lines/comments from the current document, and
-thread warmth tags only on thread list items.
-
-No-op distillation is required when no messages are newer than the watermark.
-That path makes zero provider calls and records a `noop` distill run.
-
-When the latest provider-attempted run failed with an `invalid_output:` reason,
-automatic switch, archive, and quit triggers are paused for that buddy. No-op
-runs do not clear this state. Manual `/memory distill` and `/memory refactor`
-remain explicit retry paths; a successful provider-attempted run clears the
-pause. `/memory off` controls injection only and does not disable distillation.
-The UI reports this condition as `memory failed / auto paused`.
+Regression coverage: `tests/test_memory_disabled.py`, service/prompt assembly
+tests, and disabled-distiller tests. Restarting, changing buddies, or old
+`enabled = 1` rows cannot restore injection. Deterministic legacy document
+validation remains available without network traffic.
 
 The owner-operated `scripts/baseline_memory_backlog.py` utility is the sole
 exception for abandoning an already-selected historical backlog. It accepts
@@ -502,6 +498,9 @@ Dry run is the default; apply requires an explicit backup path and creates and
 checks that private SQLite backup before changing state.
 
 ## config & secrets
+
+The legacy `[memory]` section still round-trips through config for compatibility;
+its values cannot enable the disabled feature.
 
 config at `platformdirs.user_config_dir("aol-llm") / "config.toml"`. schema:
 
@@ -594,7 +593,8 @@ cost and total-token calculations do not double-count cache tokens.
 
 Anthropic Claude Opus 4.8 uses the pinned model id `claude-opus-4-8`.
 Ordinary Anthropic chat requests for Opus 4.8 enable adaptive thinking with
-`thinking: {"type": "adaptive"}`; distiller requests explicitly omit it.
+`thinking: {"type": "adaptive"}`. The legacy distiller-specific provider factory
+omits it, but the disabled distiller cannot make requests.
 Opus 4.8 and Opus 4.7 requests omit
 `temperature`, `top_p`, and `top_k`; non-default sampling parameters are rejected
 by those models.
@@ -620,6 +620,8 @@ keybindings (use textual's BINDINGS):
 | `f5` | Archive chat |
 | `f6` | Delete chat |
 | `f7` | Retry |
+| `ctrl+o` | Attach image |
+| `ctrl+v` | Paste image |
 | `ctrl+c` | Quit |
 <!-- END AUTOGEN:keybindings-table -->
 
@@ -639,11 +641,9 @@ current commands:
 - `/export`
 - `/away`
 - `/memory status`
-- `/memory on`
-- `/memory off`
-- `/memory forget`
-- `/memory distill`
-- `/memory refactor`
+- `/attach`
+- `/paste`
+- `/detach`
 - `/buddy`
 - `/chatname`
 - `/quit`

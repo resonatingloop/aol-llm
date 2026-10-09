@@ -30,6 +30,20 @@ def test_parse_slash_command_handles_empty_slash() -> None:
     assert parse_slash_command("/") == SlashCommand(name="", args=())
 
 
+def test_attach_path_preserves_spaces() -> None:
+    assert parse_slash_command("/attach ~/Pictures/my  image.png") == SlashCommand(
+        name="attach",
+        args=("~/Pictures/my  image.png",),
+    )
+
+
+def test_attach_path_accepts_quotes() -> None:
+    assert parse_slash_command('/attach "~/Pictures/my image.png"') == SlashCommand(
+        name="attach",
+        args=("~/Pictures/my image.png",),
+    )
+
+
 def test_slash_command_help_summary_lists_documented_commands() -> None:
     summary = slash_command_help_summary()
 
@@ -44,7 +58,7 @@ def test_slash_command_detail_summary_includes_actions() -> None:
 
     assert "/help" not in summary
     assert "/memory status" in summary
-    assert "Show active buddy memory status" in summary
+    assert "Show that memory is disabled" in summary
 
 
 def test_format_usage_status_includes_cache_counters() -> None:

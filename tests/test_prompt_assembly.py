@@ -68,22 +68,18 @@ def test_suppressed_memory_row_injects_nothing() -> None:
     assert should_inject_memory(memory) is False
 
 
-def test_positive_memory_row_injects_memory_block_after_away_message() -> None:
+def test_positive_memory_row_is_disabled_globally() -> None:
     memory = buddy_memory(memory_text=" Standing decision. ")
     assembled = assemble_prompt("Be concise.", memory)
 
-    assert len(assembled.system_blocks) == 2
-    assert assembled.system_blocks[0] == "Be concise."
-    assert assembled.system_blocks[1].startswith(MEMORY_BLOCK_HEADING)
-    assert "Standing decision." in assembled.system_blocks[1]
-    assert should_inject_memory(memory) is True
+    assert assembled.system_blocks == ("Be concise.",)
+    assert should_inject_memory(memory) is False
 
 
-def test_memory_block_can_be_the_only_system_block() -> None:
+def test_memory_alone_produces_no_system_block() -> None:
     assembled = assemble_prompt(None, buddy_memory())
 
-    assert len(assembled.system_blocks) == 1
-    assert assembled.system_blocks[0].startswith(MEMORY_BLOCK_HEADING)
+    assert assembled.system_blocks == ()
 
 
 def test_openai_compatible_system_text_is_plain_flattened_prefix() -> None:
@@ -91,9 +87,7 @@ def test_openai_compatible_system_text_is_plain_flattened_prefix() -> None:
 
     assert assembled.system_text == "\n\n".join(assembled.system_blocks)
     assert assembled.system_text is not None
-    assert assembled.system_text.index("Be concise.") < assembled.system_text.index(
-        MEMORY_BLOCK_HEADING
-    )
+    assert assembled.system_text == "Be concise."
 
 
 def test_empty_prefix_serializes_to_none() -> None:

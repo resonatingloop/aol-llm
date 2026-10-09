@@ -11,6 +11,7 @@ from aol_llm.core.types import (
     Buddy,
     BuddyMemory,
     Conversation,
+    ImageAttachment,
     Message,
     ProviderConfig,
     ProviderKind,
@@ -19,7 +20,6 @@ from aol_llm.export import write_export
 from aol_llm.memory_distiller import (
     DistillMode,
     DistillResult,
-    distill_buddy_memory as run_memory_distiller,
 )
 from aol_llm.prompt_assembly import assemble_prompt
 from aol_llm.providers.base import Provider
@@ -81,15 +81,7 @@ class MemoryStatus:
 
     @property
     def label(self) -> str:
-        if self.auto_distill_paused:
-            return "memory failed / auto paused"
-        if not self.has_memory:
-            return "memory empty"
-        if self.suppressed:
-            return "memory suppressed"
-        if not self.enabled:
-            return "memory off"
-        return "memory on"
+        return "memory disabled"
 
 
 class ChatService:
@@ -291,15 +283,7 @@ class ChatService:
         *,
         mode: DistillMode = "incremental",
     ) -> DistillResult:
-        return await run_memory_distiller(
-            buddy_id,
-            mode=mode,
-            db_path=self._db_path,
-            app_config=self._config,
-            provider_factory=self._distiller_provider_factory,
-            api_key_getter=self._api_key_getter,
-            rate_card=self._rate_card,
-        )
+        raise ValueError("Memory is disabled; distillation is unavailable.")
 
     def buddy_memory_status(self, buddy_id: str) -> MemoryStatus:
         memory = db.get_buddy_memory(buddy_id, self._db_path)
@@ -312,25 +296,27 @@ class ChatService:
         if memory is None:
             return MemoryStatus(
                 has_memory=False,
-                enabled=True,
+                enabled=False,
                 suppressed=False,
                 auto_distill_paused=auto_distill_paused,
             )
         return MemoryStatus(
             has_memory=bool(memory.memory_text.strip()),
-            enabled=memory.enabled,
+            enabled=False,
             suppressed=memory.suppress_injection,
             auto_distill_paused=auto_distill_paused,
         )
 
     def should_auto_distill_buddy(self, buddy_id: str) -> bool:
-        return not self.buddy_memory_status(buddy_id).auto_distill_paused
+        return False
 
     def set_buddy_memory_enabled(
         self,
         buddy_id: str,
         enabled: bool,
     ) -> MemoryStatus:
+        if enabled:
+            raise ValueError("Memory is disabled; it cannot be re-enabled.")
         db.set_buddy_memory_enabled(buddy_id, enabled, self._db_path)
         return self.buddy_memory_status(buddy_id)
 
@@ -342,8 +328,16 @@ class ChatService:
         self,
         conversation_id: str,
         content: str,
+        *,
+        images: tuple[ImageAttachment, ...] = (),
     ) -> AsyncIterator[ChatEvent]:
-        db.add_message(conversation_id, "user", content, path=self._db_path)
+        db.add_message(
+            conversation_id,
+            "user",
+            content,
+            path=self._db_path,
+            images=images,
+        )
         async for event in self.stream_response(conversation_id):
             yield event
 
@@ -490,8 +484,7 @@ class ChatService:
         conversation: Conversation,
     ) -> tuple[str | None, str | None]:
         system, prompt_version_id = self._resolve_system_prompt(conversation)
-        memory = self._conversation_memory(conversation)
-        return assemble_prompt(system, memory).system_text, prompt_version_id
+        return assemble_prompt(system, None).system_text, prompt_version_id
 
     def _conversation_memory(
         self,

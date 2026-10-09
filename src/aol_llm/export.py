@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+import base64
 from dataclasses import asdict
 import json
 from pathlib import Path
 import re
 
-from aol_llm.core.types import Conversation, Message
+from aol_llm.core.images import image_summary
+from aol_llm.core.types import Conversation, ImageAttachment, Message
 
 
 def export_markdown(
     conversation: Conversation,
     messages: list[Message],
     reply_name: str | None = None,
+    image_directory: str | None = None,
 ) -> str:
     lines = [
         f"# {conversation.title}",
@@ -39,6 +42,18 @@ def export_markdown(
                 "",
             ]
         )
+        if message.images:
+            if image_directory is None:
+                lines.extend([image_summary(message.images), ""])
+            else:
+                for index, image in enumerate(message.images):
+                    label = image.name.replace("[", "\\[").replace("]", "\\]")
+                    lines.extend(
+                        [
+                            f"![{label}]({image_directory}/{_image_filename(message, index, image)})",
+                            "",
+                        ]
+                    )
         usage = _usage_line(message)
         if usage is not None:
             lines.extend([usage, ""])
@@ -73,7 +88,9 @@ def export_last_pair_markdown(
         [
             "### User",
             "",
-            user_message.content,
+            "\n".join(
+                filter(None, [user_message.content, image_summary(user_message.images)])
+            ),
             "",
             f"### {assistant_label.title()}",
             "",
@@ -93,8 +110,23 @@ def write_export(
     directory.mkdir(parents=True, exist_ok=True)
     extension = _extension(format)
     path = directory / f"{_slug(conversation.title)}-{conversation.id}.{extension}"
+    image_directory = None
+    if format == "markdown" and any(message.images for message in messages):
+        image_directory = f"{path.stem}-images"
+        folder = directory / image_directory
+        folder.mkdir(parents=True, exist_ok=True)
+        for message in messages:
+            for index, image in enumerate(message.images):
+                (folder / _image_filename(message, index, image)).write_bytes(
+                    image.data
+                )
     content = (
-        export_markdown(conversation, messages, reply_name=reply_name)
+        export_markdown(
+            conversation,
+            messages,
+            reply_name=reply_name,
+            image_directory=image_directory,
+        )
         if format == "markdown"
         else export_json(conversation, messages, reply_name=reply_name)
     )
@@ -107,7 +139,27 @@ def _json_dataclass(value: Conversation | Message) -> dict[str, object]:
     data["created_at"] = value.created_at.isoformat()
     if isinstance(value, Conversation):
         data["updated_at"] = value.updated_at.isoformat()
+    elif value.images:
+        data["images"] = [
+            {
+                "name": image.name,
+                "media_type": image.media_type,
+                "data_base64": base64.b64encode(image.data).decode("ascii"),
+            }
+            for image in value.images
+        ]
+    else:
+        data.pop("images", None)
     return data
+
+
+def _image_filename(message: Message, index: int, image: ImageAttachment) -> str:
+    extension = (
+        "jpg"
+        if image.media_type == "image/jpeg"
+        else image.media_type.removeprefix("image/")
+    )
+    return f"{_slug(message.id)}-{index}.{extension}"
 
 
 def _usage_line(message: Message) -> str | None:

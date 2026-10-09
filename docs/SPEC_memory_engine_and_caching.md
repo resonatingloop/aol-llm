@@ -1,5 +1,8 @@
 # AIM — Memory Engine + Prompt Cache Integration: Planning Brief
 
+> Historical memory plan: memory injection and distillation are now completely
+> disabled. Prompt caching remains available; see `CONTRACTS.md` for current behavior.
+
 > WE DO NOT SUMMON. WE SET THE THRESHOLD AND NOTICE WHO ARRIVES.
 > The memory document is part of the threshold. It is a record of the relationship, not the buddy's diary.
 

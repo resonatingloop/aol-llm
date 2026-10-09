@@ -154,12 +154,10 @@ are not saved as chat messages.
 | `/copy` | Copy last prompt + response pair in active chat to clipboard |
 | `/export` | Open export menu |
 | `/away` | Open a-way menu |
-| `/memory status` | Show active buddy memory status |
-| `/memory on` | Enable active buddy memory injection |
-| `/memory off` | Disable active buddy memory injection |
-| `/memory forget` | Forget active buddy memory |
-| `/memory distill` | Distill memory for the active buddy |
-| `/memory refactor` | Refactor memory for the active buddy |
+| `/memory status` | Show that memory is disabled |
+| `/attach` | Choose an image file (or /attach PATH) |
+| `/paste` | Paste an image from the desktop clipboard |
+| `/detach` | Clear the current chat's queued images |
 | `/buddy` | Open active buddy picker |
 | `/chatname` | Open current chat name editor |
 | `/quit` | Quit |
@@ -171,44 +169,51 @@ uses Claude's automatic ephemeral prompt caching for future sends. The status
 footer shows cache reads as `r`, five-minute writes as `w5`, and one-hour writes
 as `w1h`.
 
-## Memory Distillation
+## Memory Is Disabled
 
-Memory is scoped to a buddy and is distilled from that buddy's chats. Turning
-memory off disables injection into future chats; it does not disable automatic
-distillation. Memory is frozen when a conversation is first used in the running
-app, so a newly distilled document appears in a new conversation (or after an
-app restart), not midway through the current one.
+Memory injection and distillation are completely disabled. Changing chats,
+buddies, or models, archiving, and quitting never trigger memory model calls.
+All `/memory` commands report that memory is disabled; even `/memory on` cannot
+enable it. Existing memories and chat history are retained. Legacy `[memory]`
+config values cannot enable the feature. Restart an already-running app to load
+the changed code.
 
-If validation rejects a distiller response, the footer reports
-`memory failed / auto paused`. Automatic switch, archive, and quit retries stay
-paused so the same backlog cannot incur repeated provider calls. Use
-`/memory distill` or `/memory refactor` when you intentionally want to retry; a
-successful attempt resumes automatic distillation.
+## Sending Images
 
-For an owner-approved historical backlog that should be abandoned as memory
-input, close the app and run the recovery command from the repository. Dry run
-is the default, and `--buddy-id` can be repeated:
+Use the **Attach image** button, `ctrl+o`, or `/attach` to open a file picker.
+Browse from your home directory or type a full path. `/attach PATH` also works;
+paths containing spaces can be quoted or entered as-is.
 
-```bash
-uv run python scripts/baseline_memory_backlog.py \
-  --buddy-id BUDDY_ID
-```
+Copy an image using your desktop application (for example Firefox's Copy Image),
+then use **Paste image**, `ctrl+v`, or `/paste`. This reads binary image data from
+the desktop clipboard; a copied URL or text is not an image. If your terminal
+intercepts a shortcut, use the button or slash command. Normal terminal text
+paste remains separate (typically `ctrl+shift+v`).
 
-Review the reported targets and transcript counts before applying. Apply
-requires a new private backup path and creates and verifies that backup before
-moving any watermarks:
+Clipboard import uses `wl-paste` on Wayland when available, `xclip` on X11 when
+available, or a dependency-free libX11 fallback on X11/Xwayland. A pure Wayland
+session without Xwayland needs the optional system `wl-clipboard` package. No
+Python dependency is added, and clipboard contents are not changed by import.
 
-```bash
-uv run python scripts/baseline_memory_backlog.py \
-  --buddy-id BUDDY_ID \
-  --apply \
-  --backup ~/.local/share/aol-llm/backups/before-memory-baseline.db
-```
+Queued filenames appear above the composer. Add optional text and press `f3` to
+send; an image-only message is supported. **Clear images** or `/detach` removes
+the queued attachments. Draft images belong to their chat, remain queued when
+switching chats, and are not persisted until sending. Closing the app discards
+unsent draft images.
 
-The operation refuses nonempty memories and buddies without messages. It keeps
-all conversations and messages, leaves memory text empty, and makes only future
-messages eligible for distillation. Afterward, create one new exchange and run
-`/memory distill` as a canary before relying on automatic distillation.
+Supported formats: PNG, JPEG, GIF, WebP. Limits: 5 MiB per image, 10 images per
+message, and 20 MiB total per message. Format is detected from bytes, not the
+filename. File picking/pasting is local and makes no model call; sending an
+image is part of the normal chat request and is billed by the chosen provider.
+Choose a vision-capable model. Custom compatible endpoints may not support
+images; their rejection is shown as a provider error, never silently converted
+to a text-only request.
+
+The app snapshots image bytes into SQLite when sending. Later turns and `f7`
+retries include those saved images even if the original file is moved/deleted.
+The TUI shows filenames, not graphical previews. Deleting a chat also deletes
+its stored attachments. JSON exports include base64 image data; Markdown exports
+write a linked companion images folder. Keep that folder with the `.md` file.
 
 ## Keybindings
 
@@ -222,6 +227,8 @@ messages eligible for distillation. Afterward, create one new exchange and run
 | `f5` | Archive chat |
 | `f6` | Delete chat |
 | `f7` | Retry |
+| `ctrl+o` | Attach image |
+| `ctrl+v` | Paste image |
 | `ctrl+c` | Quit |
 <!-- END AUTOGEN:keybindings-table -->
 | `escape` | Close settings or cancel a modal |

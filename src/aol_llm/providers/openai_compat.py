@@ -18,6 +18,7 @@ from aol_llm.providers._http import (
     raise_for_provider_status,
     translate_httpx_error,
 )
+from aol_llm.providers.images import openai_chat_content
 from aol_llm.providers.openai_responses import (
     OpenAIResponseOptions,
     stream_openai_response,
@@ -66,7 +67,7 @@ class OpenAICompatibleProvider:
                 yield chunk
             return
 
-        payload_messages = []
+        payload_messages: list[dict[str, object]] = []
         if system is not None:
             payload_messages.append(
                 {
@@ -75,7 +76,8 @@ class OpenAICompatibleProvider:
                 }
             )
         payload_messages.extend(
-            {"role": message.role, "content": message.content} for message in messages
+            {"role": message.role, "content": openai_chat_content(message)}
+            for message in messages
         )
         payload = {
             "model": model,

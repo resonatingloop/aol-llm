@@ -55,9 +55,12 @@ Screen {
 }
 
 #composer {
-    height: 7;
+    height: 11;
     border-top: solid $panel;
 }
+
+#composer-images { height: auto; max-height: 3; overflow-y: auto; }
+#composer-image-actions { height: 3; }
 
 #composer-input {
     height: 1fr;
@@ -112,5 +115,7 @@ APP_BINDINGS: list[Binding | tuple[str, str] | tuple[str, str, str]] = [
     Binding("f5", "archive_current_chat", "Archive chat", priority=True),
     Binding("f6", "delete_current_chat", "Delete chat", priority=True),
     Binding("f7", "retry_last", "Retry", priority=True),
+    Binding("ctrl+o", "attach_image", "Attach image", priority=True),
+    Binding("ctrl+v", "paste_image", "Paste image", priority=True),
     Binding("ctrl+c", "quit", "Quit", priority=True),
 ]
